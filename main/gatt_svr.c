@@ -15,7 +15,12 @@
 static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
 static const char *system_id = "SYNO";
+static const char *device_name = "synth_opl";
 
+static uint16_t conn_handle;
+static uint8_t ble_synth_prph_addr_type;
+
+static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
 static int gatt_svr_chr_access_device_info(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
@@ -71,12 +76,10 @@ static int gatt_svr_chr_access_device_info(uint16_t conn_handle, uint16_t attr_h
     return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
   }
 
-  assert(0);
   return BLE_ATT_ERR_UNLIKELY;
 }
 
-void
-gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
+void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
   char buf[BLE_UUID_STR_LEN];
 
   switch (ctxt->op) {
@@ -116,13 +119,6 @@ int gatt_svr_init(void) {
 
   return 0;
 }
-
-static uint16_t conn_handle;
-static const char *device_name = "synth_opl";
-
-static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
-
-static uint8_t ble_synth_prph_addr_type;
 
 void print_bytes(const uint8_t *bytes, int len) {
   int i;
@@ -278,7 +274,7 @@ void ble_synth_prph_host_task(void *param) {
   nimble_port_freertos_deinit();
 }
 
-void ble_synth_start() {
+void gatt_srv_start() {
   esp_err_t ret = nimble_port_init();
   if (ret != ESP_OK) {
     MODLOG_DFLT(ERROR, "Failed to init nimble %d \n", ret);

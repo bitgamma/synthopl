@@ -1,6 +1,7 @@
-#include "esp_log.h"
 #include "nvs_flash.h"
 #include "gatt_svr.h"
+#include "opl_srv.h"
+#include "midi_srv.h"
 
 void app_main(void) {
   esp_err_t ret = nvs_flash_init();
@@ -9,6 +10,8 @@ void app_main(void) {
     ret = nvs_flash_init();
   }
   ESP_ERROR_CHECK(ret);
-
-  ble_synth_start();
+  
+  opl_srv_start();
+  midi_srv_start();
+  gatt_srv_start();
 }
