@@ -42,7 +42,7 @@ void midi_srv_run(void *param) {
         break;
       case MIDI_POLY_PRESSURE:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Polyacustic pressure: %d pressure: %d, ch: %d", data[0], data[1], (status & 0xf));
+        ESP_LOGI(TAG, "Polyacustic Pressure: %d pressure: %d, ch: %d", data[0], data[1], (status & 0xf));
         break;        
       case MIDI_CTRL_CHANGE:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
@@ -58,10 +58,10 @@ void midi_srv_run(void *param) {
         break;
       case MIDI_PITCH_BEND:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Channel Pressure: %d ch: %d", data[0], (status & 0xf));
+        ESP_LOGI(TAG, "Pitch Bend: %d ch: %d", (data[0] | (data[1] << 7)), (status & 0xf));
         break;
       case MIDI_SYSTEM:
-        ESP_LOGI(TAG, "System message: %x", status);
+        ESP_LOGI(TAG, "System Message: %x", status);
         break;   
       default:
         ESP_LOGI(TAG, "Skipped data byte: %x ", status);
@@ -73,7 +73,6 @@ void midi_srv_run(void *param) {
 void midi_srv_start() {
   esp_log_level_set(TAG, ESP_LOG_INFO);
 
-  /* Configure parameters of an UART driver, communication pins and install the driver */
   uart_config_t uart_config = {
       .baud_rate = 31250,
       .data_bits = UART_DATA_8_BITS,
@@ -83,11 +82,9 @@ void midi_srv_start() {
       .source_clk = UART_SCLK_DEFAULT,
   };
 
-  //Install UART driver, and get the queue.
   uart_driver_install(MIDI_UART, RECV_BUF_SIZE, 0, 0, NULL, 0);
   uart_param_config(MIDI_UART, &uart_config);
 
-  //Set UART pins
   uart_set_pin(MIDI_UART, UART_PIN_NO_CHANGE, MIDI_UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
   xTaskCreatePinnedToCore(midi_srv_run, "midi_srv", MIDI_SRV_STACK_SIZE, NULL, 1, &midi_srv_task, 1);
