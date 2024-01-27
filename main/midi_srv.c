@@ -7,10 +7,10 @@
 #include "soc/uart_channel.h"
 #include "esp_log.h"
 
-#define MIDI_SRV_STACK_SIZE 512
-#define MIDI_UART UART_NUM_0
-#define MIDI_UART_RX_PIN UART_NUM_0_RXD_DIRECT_GPIO_NUM
-#define RECV_BUF_SIZE 1024
+#define MIDI_SRV_STACK_SIZE 8096
+#define MIDI_UART UART_NUM_1
+#define MIDI_UART_RX_PIN UART_NUM_1_RXD_DIRECT_GPIO_NUM
+#define RECV_BUF_SIZE 512
 #define RECV_TIMEOUT 1
 
 #define MIDI_NOTE_OFF 0x80
@@ -26,11 +26,16 @@ static const char *TAG = "midi_srv";
 static TaskHandle_t midi_srv_task;
 
 void midi_srv_run(void *param) {
+  ESP_LOGI(TAG, "ready");
+
   while(1) {
     uint8_t status;
     uint8_t data[2];
 
-    uart_read_bytes(MIDI_UART, &status, 1, portMAX_DELAY);
+    if (uart_read_bytes(MIDI_UART, &status, 1, portMAX_DELAY) < 1) {
+      continue;
+    }
+
     switch(status & 0xf0) {
       case MIDI_NOTE_OFF:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
@@ -87,5 +92,5 @@ void midi_srv_start() {
 
   uart_set_pin(MIDI_UART, UART_PIN_NO_CHANGE, MIDI_UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-  xTaskCreatePinnedToCore(midi_srv_run, "midi_srv", MIDI_SRV_STACK_SIZE, NULL, 1, &midi_srv_task, 1);
+  xTaskCreatePinnedToCore(midi_srv_run, "midi_srv", MIDI_SRV_STACK_SIZE, NULL, 12, &midi_srv_task, 1);
 }
