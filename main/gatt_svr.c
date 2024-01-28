@@ -170,34 +170,26 @@ void print_addr(const void *addr) {
 static void ble_synth_prph_advertise(void) {
   struct ble_gap_adv_params adv_params;
   struct ble_hs_adv_fields fields;
+  struct ble_hs_adv_fields scan_response_fields;
+
   int rc;
 
-  /*
-    *  Set the advertisement data included in our advertisements:
-    *     o Flags (indicates advertisement type and other general info)
-    *     o Advertising tx power
-    *     o Device name
-    */
   memset(&fields, 0, sizeof(fields));
+  memset(&scan_response_fields, 0, sizeof scan_response_fields);
 
-  /*
-    * Advertise two flags:
-    *      o Discoverability in forthcoming advertisement (general)
-    *      o BLE-only (BR/EDR unsupported)
-    */
+  scan_response_fields.name = (uint8_t *)model_num;
+  scan_response_fields.name_len = strlen(model_num);
+  scan_response_fields.name_is_complete = 1;
+  rc = ble_gap_adv_rsp_set_fields(&scan_response_fields);
+
+  if (rc != 0) {
+    MODLOG_DFLT(ERROR, "error setting scan response data; rc=%d\n", rc);
+    return;
+  }
+
   fields.flags = BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP;
-
-  /*
-    * Indicate that the TX power level field should be included; have the
-    * stack fill this value automatically.  This is done by assigning the
-    * special value BLE_HS_ADV_TX_PWR_LVL_AUTO.
-    */
   fields.tx_pwr_lvl_is_present = 1;
   fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
-
-  fields.name = (uint8_t *)model_num;
-  fields.name_len = strlen(model_num);
-  fields.name_is_complete = 1;
 
   fields.uuids128 = (ble_uuid128_t[]) {
     BLE_UUID128_INIT(GATT_OPL_UUID)
