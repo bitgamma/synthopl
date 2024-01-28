@@ -92,11 +92,12 @@ static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t 
 static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
   uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
   
-  if (om_len != sizeof(opl_msg_t)) {
+  if (om_len > sizeof(opl_msg_t)) {
     return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
   }
 
   opl_msg_t msg;
+  memset(&msg, 0, sizeof(opl_msg_t));
   ble_hs_mbuf_to_flat(ctxt->om, &msg, om_len, &om_len);
 
   opl_srv_queue_msg(&msg);
