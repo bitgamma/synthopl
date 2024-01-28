@@ -14,14 +14,20 @@
 
 static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
-static const char *system_id = "SYNO";
-static const char *device_name = "synth_opl";
 
 static uint16_t conn_handle;
 static uint8_t ble_synth_prph_addr_type;
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
-static int gatt_svr_chr_access_device_info(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+
+static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_device_info_model_number(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+
+static int gatt_svr_chr_opl_cfg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_channel(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_note(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   {
@@ -30,53 +36,88 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
     .uuid = BLE_UUID16_DECLARE(GATT_DIS_DEVICE_INFO_UUID),
     .characteristics = (struct ble_gatt_chr_def[]) { 
       {
-        /* Characteristic: * Manufacturer name */
+        /* Characteristic: Manufacturer name */
         .uuid = BLE_UUID16_DECLARE(GATT_DIS_CHR_UUID16_MFC_NAME),
-        .access_cb = gatt_svr_chr_access_device_info,
+        .access_cb = gatt_svr_chr_device_info_manufacturer,
         .flags = BLE_GATT_CHR_F_READ,
       }, {
         /* Characteristic: Model number string */
         .uuid = BLE_UUID16_DECLARE(GATT_DIS_CHR_UUID16_MODEL_NO),
-        .access_cb = gatt_svr_chr_access_device_info,
-        .flags = BLE_GATT_CHR_F_READ,
-      }, {
-        /* Characteristic: System ID */
-        .uuid = BLE_UUID16_DECLARE(GATT_DIS_CHR_UUID16_SYS_ID),
-        .access_cb = gatt_svr_chr_access_device_info,
+        .access_cb = gatt_svr_chr_device_info_model_number,
         .flags = BLE_GATT_CHR_F_READ,
       }, {
         0, /* No more characteristics in this service */
       },
     }
   },
+  
+  {
+    /* Service: SynthOPL */
+    .type = BLE_GATT_SVC_TYPE_PRIMARY,
+    .uuid = BLE_UUID128_DECLARE(GATT_OPL_UUID),
+    .characteristics = (struct ble_gatt_chr_def[]) { 
+      {
+        /* Characteristic: Global Configuration */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_CFG),
+        .access_cb = gatt_svr_chr_opl_cfg,
+        .flags = BLE_GATT_CHR_F_WRITE,
+      }, {
+        /* Characteristic: Channel Configuration */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_CHANNEL),
+        .access_cb = gatt_svr_chr_opl_channel,
+        .flags = BLE_GATT_CHR_F_WRITE,
+      }, {
+        /* Characteristic: List programs */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_LIST_PRG),
+        .access_cb = gatt_svr_chr_opl_list_prg,
+        .flags = BLE_GATT_CHR_F_READ,
+      }, {
+        /* Characteristic: Program */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_PROGRAM),
+        .access_cb = gatt_svr_chr_opl_program,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+      }, {
+        /* Characteristic: Note */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_NOTE),
+        .access_cb = gatt_svr_chr_opl_note,
+        .flags = BLE_GATT_CHR_F_WRITE,
+      }, {
+        0, /* No more characteristics in this service */
+      },
+    }
+  }, 
 
   {
     0, /* No more services */
   },
 };
 
-static int gatt_svr_chr_access_device_info(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  uint16_t uuid;
-  int rc;
+static int gatt_svr_chr_device_info_model_number(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return os_mbuf_append(ctxt->om, model_num, strlen(model_num)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
 
-  uuid = ble_uuid_u16(ctxt->chr->uuid);
+static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return os_mbuf_append(ctxt->om, manuf_name, strlen(manuf_name)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+}
 
-  if (uuid == GATT_DIS_CHR_UUID16_MODEL_NO) {
-    rc = os_mbuf_append(ctxt->om, model_num, strlen(model_num));
-    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-  }
+static int gatt_svr_chr_opl_cfg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return 0;
+}
 
-  if (uuid == GATT_DIS_CHR_UUID16_MFC_NAME) {
-    rc = os_mbuf_append(ctxt->om, manuf_name, strlen(manuf_name));
-    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-  }
+static int gatt_svr_chr_opl_channel(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return 0;
+}
 
-  if (uuid == GATT_DIS_CHR_UUID16_SYS_ID) {
-    rc = os_mbuf_append(ctxt->om, system_id, strlen(system_id));
-    return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-  }
+static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return 0;
+}
 
-  return BLE_ATT_ERR_UNLIKELY;
+static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return 0;
+}
+
+static int gatt_svr_chr_opl_note(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  return 0;
 }
 
 void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
@@ -162,16 +203,15 @@ static void ble_synth_prph_advertise(void) {
   fields.tx_pwr_lvl_is_present = 1;
   fields.tx_pwr_lvl = BLE_HS_ADV_TX_PWR_LVL_AUTO;
 
-  fields.name = (uint8_t *)device_name;
-  fields.name_len = strlen(device_name);
+  fields.name = (uint8_t *)model_num;
+  fields.name_len = strlen(model_num);
   fields.name_is_complete = 1;
 
-  fields.uuids16 = (ble_uuid16_t[]) {
-    //BLE_UUID16_INIT(BLE_SVC_HTP_UUID16)
-    BLE_UUID16_INIT(0)
+  fields.uuids128 = (ble_uuid128_t[]) {
+    BLE_UUID128_INIT(GATT_OPL_UUID)
   };
-  fields.num_uuids16 = 1;
-  fields.uuids16_is_complete = 1;
+  fields.num_uuids128 = 1;
+  fields.uuids128_is_complete = 1;
 
   rc = ble_gap_adv_set_fields(&fields);
   if (rc != 0) {
@@ -297,7 +337,7 @@ void gatt_srv_start() {
   assert(rc == 0);
 
   /* Set the default device name */
-  rc = ble_svc_gap_device_name_set(device_name);
+  rc = ble_svc_gap_device_name_set(model_num);
   assert(rc == 0);
 
   /* Start the task */
