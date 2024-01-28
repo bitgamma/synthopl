@@ -23,7 +23,6 @@
 #define MIDI_SYSTEM 0xf0
 
 static const char *TAG = "midi_srv";
-static TaskHandle_t midi_srv_task;
 
 void midi_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
@@ -76,8 +75,6 @@ void midi_srv_run(void *param) {
 }
 
 void midi_srv_start() {
-  esp_log_level_set(TAG, ESP_LOG_INFO);
-
   uart_config_t uart_config = {
       .baud_rate = 31250,
       .data_bits = UART_DATA_8_BITS,
@@ -92,5 +89,5 @@ void midi_srv_start() {
 
   uart_set_pin(MIDI_UART, UART_PIN_NO_CHANGE, MIDI_UART_RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
-  xTaskCreatePinnedToCore(midi_srv_run, "midi_srv", MIDI_SRV_STACK_SIZE, NULL, 12, &midi_srv_task, 1);
+  xTaskCreatePinnedToCore(midi_srv_run, "midi_srv", MIDI_SRV_STACK_SIZE, NULL, 12, NULL, 1);
 }

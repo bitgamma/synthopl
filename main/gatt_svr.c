@@ -11,6 +11,7 @@
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "gatt_svr.h"
+#include "opl_srv.h"
 
 static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
@@ -23,11 +24,9 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
 static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_device_info_model_number(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 
-static int gatt_svr_chr_opl_cfg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-static int gatt_svr_chr_opl_channel(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-static int gatt_svr_chr_opl_note(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   {
@@ -57,14 +56,9 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
     .uuid = BLE_UUID128_DECLARE(GATT_OPL_UUID),
     .characteristics = (struct ble_gatt_chr_def[]) { 
       {
-        /* Characteristic: Global Configuration */
-        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_CFG),
-        .access_cb = gatt_svr_chr_opl_cfg,
-        .flags = BLE_GATT_CHR_F_WRITE,
-      }, {
-        /* Characteristic: Channel Configuration */
-        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_CHANNEL),
-        .access_cb = gatt_svr_chr_opl_channel,
+        /* Characteristic: OPL Message */
+        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_MSG),
+        .access_cb = gatt_svr_chr_opl_msg,
         .flags = BLE_GATT_CHR_F_WRITE,
       }, {
         /* Characteristic: List programs */
@@ -76,11 +70,6 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
         .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_PROGRAM),
         .access_cb = gatt_svr_chr_opl_program,
         .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
-      }, {
-        /* Characteristic: Note */
-        .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_NOTE),
-        .access_cb = gatt_svr_chr_opl_note,
-        .flags = BLE_GATT_CHR_F_WRITE,
       }, {
         0, /* No more characteristics in this service */
       },
@@ -100,24 +89,27 @@ static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t 
   return os_mbuf_append(ctxt->om, manuf_name, strlen(manuf_name)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
 }
 
-static int gatt_svr_chr_opl_cfg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return 0;
-}
+static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
+  
+  if (om_len != sizeof(opl_msg_t)) {
+    return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+  }
 
-static int gatt_svr_chr_opl_channel(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  opl_msg_t msg;
+  ble_hs_mbuf_to_flat(ctxt->om, &msg, om_len, &om_len);
+
+  opl_srv_queue_msg(&msg);
+
   return 0;
 }
 
 static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return 0;
+  return BLE_ATT_ERR_REQ_NOT_SUPPORTED;
 }
 
 static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return 0;
-}
-
-static int gatt_svr_chr_opl_note(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return 0;
+  return BLE_ATT_ERR_REQ_NOT_SUPPORTED;
 }
 
 void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
