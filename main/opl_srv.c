@@ -10,8 +10,23 @@
 #define OPL_SRV_QUEUE_TIMEOUT_MS 20
 
 #define OPL_CHANNEL_COUNT 18
+#define OPL_OP_COUNT_BANK 18
 #define OPL_NO_OP 0xff
 #define OPL_NO_OPS OPL_NO_OP, OPL_NO_OP
+
+#define OPL_OP_TREM_VIBR_SUST_KSR_FMF_BASE 0x20
+#define OPL_OP_KSL_OUTPUT_BASE 0x40
+#define OPL_OP_ATTACK_DECAY_BASE 0x60
+#define OPL_OP_SUSTAIN_RELEASE_BASE 0x80
+#define OPL_OP_WAVEFORM_BASE 0xe0
+
+#define OPL_CH_FREQL_BASE 0xa0
+#define OPL_CH_KEYON_BLOCK_FREQH_BASE 0xb0
+#define OPL_CH_CHANNELS_FMF_SYNTH_BASE 0xc0
+
+#define OPL_OPL3_CONFIG 0x8004
+#define OPL_OPL3_ENABLE 0x8005
+#define OPL_TREM_VIBR_PERCUSSION 0x00bd
 
 struct opl_channel_ops {
   uint8_t op1;
@@ -42,8 +57,36 @@ const struct opl_channel_ops OPL_CHANNEL_OPS[OPL_CHANNEL_COUNT] = {
   {32, 35, OPL_NO_OPS}
 };
 
+const uint8_t OPL_OP_REG_OFF[OPL_OP_COUNT_BANK] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15 };
+
 static QueueHandle_t msg_queue;
 static const char *TAG = "opl_srv";
+
+static inline uint16_t opl_channel_reg_addr(uint8_t base, uint8_t ch) {
+  uint16_t hi;
+
+  if (ch >= (OPL_CHANNEL_COUNT/2)) {
+    hi = 0x8000;
+    ch -= (OPL_CHANNEL_COUNT/2);
+  } else {
+    hi = 0;
+  }
+
+  return hi | (base + ch);
+}
+
+static inline uint16_t opl_op_reg_addr(uint8_t base, uint8_t op) {
+  uint16_t hi;
+
+  if (op >= OPL_OP_COUNT_BANK) {
+    hi = 0x8000;
+    op -= OPL_OP_COUNT_BANK;
+  } else {
+    hi = 0;
+  }
+
+  return hi | (base + OPL_OP_REG_OFF[op]);
+}
 
 void opl_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
