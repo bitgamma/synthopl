@@ -10,6 +10,7 @@
 #include "host/ble_uuid.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
+#include "services/dis/ble_svc_dis.h"
 #include "gatt_svr.h"
 #include "opl_srv.h"
 
@@ -21,35 +22,11 @@ static uint8_t ble_synth_prph_addr_type;
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
 
-static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-static int gatt_svr_chr_device_info_model_number(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-
 static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
-  {
-    /* Service: Device Information */
-    .type = BLE_GATT_SVC_TYPE_PRIMARY,
-    .uuid = BLE_UUID16_DECLARE(GATT_DIS_DEVICE_INFO_UUID),
-    .characteristics = (struct ble_gatt_chr_def[]) { 
-      {
-        /* Characteristic: Manufacturer name */
-        .uuid = BLE_UUID16_DECLARE(GATT_DIS_CHR_UUID16_MFC_NAME),
-        .access_cb = gatt_svr_chr_device_info_manufacturer,
-        .flags = BLE_GATT_CHR_F_READ,
-      }, {
-        /* Characteristic: Model number string */
-        .uuid = BLE_UUID16_DECLARE(GATT_DIS_CHR_UUID16_MODEL_NO),
-        .access_cb = gatt_svr_chr_device_info_model_number,
-        .flags = BLE_GATT_CHR_F_READ,
-      }, {
-        0, /* No more characteristics in this service */
-      },
-    }
-  },
-  
   {
     /* Service: SynthOPL */
     .type = BLE_GATT_SVC_TYPE_PRIMARY,
@@ -80,14 +57,6 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
     0, /* No more services */
   },
 };
-
-static int gatt_svr_chr_device_info_model_number(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return os_mbuf_append(ctxt->om, model_num, strlen(model_num)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-}
-
-static int gatt_svr_chr_device_info_manufacturer(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return os_mbuf_append(ctxt->om, manuf_name, strlen(manuf_name)) == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-}
 
 static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
   uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
@@ -140,6 +109,7 @@ int gatt_svr_init(void) {
 
   ble_svc_gap_init();
   ble_svc_gatt_init();
+  ble_svc_dis_init();
 
   rc = ble_gatts_count_cfg(gatt_svr_svcs);
   if (rc != 0) {
@@ -324,6 +294,9 @@ void gatt_srv_start() {
   /* Set the default device name */
   rc = ble_svc_gap_device_name_set(model_num);
   assert(rc == 0);
+
+  ble_svc_dis_manufacturer_name_set(manuf_name);
+  ble_svc_dis_model_number_set(model_num);
 
   /* Start the task */
   nimble_port_freertos_init(ble_synth_prph_host_task);  
