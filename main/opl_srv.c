@@ -68,10 +68,10 @@ void opl_srv_run(void *param) {
         ESP_LOGI(TAG, "Channel Config: %d", msg.params.channel_cfg.id);
         break;
       case LOAD_PROGRAM:
-        ESP_LOGI(TAG, "Load program: %d, bank: %d", msg.params.load_prg.prg, msg.params.load_prg.bank);
+        ESP_LOGI(TAG, "Load Program: %d, bank: %d", msg.params.load_prg.prg, msg.params.load_prg.bank);
         break; 
       default:
-        ESP_LOGW(TAG, "unknown command %x", msg.cmd);
+        ESP_LOGW(TAG, "Unknown Command %x", msg.cmd);
         break;
     }
   }
