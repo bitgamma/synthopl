@@ -6,6 +6,8 @@
 #include "driver/uart.h"
 #include "soc/uart_channel.h"
 #include "esp_log.h"
+#include "opl_srv.h"
+#include "synth.h"
 
 #define MIDI_SRV_STACK_SIZE 8096
 #define MIDI_UART UART_NUM_1
@@ -22,7 +24,40 @@
 #define MIDI_PITCH_BEND 0xe0
 #define MIDI_SYSTEM 0xf0
 
+#define MIDI_BANK_CC 0x00
+#define MIDI_PRG_CC 0x20
+
 static const char *TAG = "midi_srv";
+
+static void midi_queue_note(opl_cmd_t cmd, uint8_t note, uint8_t vel, uint8_t ch) {
+  opl_msg_t msg;
+  msg.cmd = cmd;
+  msg.params.note.note = note;
+  msg.params.note.velocity = vel;
+  msg.params.note.drum_channel = ch & 0x1;
+  opl_srv_queue_msg(&msg);  
+}
+
+static void midi_program_change(uint8_t bank, uint8_t prg) {
+  opl_msg_t msg;
+  msg.cmd = LOAD_PROGRAM;
+  msg.params.load_prg.bank = bank;
+  msg.params.load_prg.prg = prg;
+  opl_srv_queue_msg(&msg);  
+}
+
+static void midi_ctrl_change(uint8_t cc, uint8_t val) {
+  switch(cc) {
+    case MIDI_BANK_CC:
+      midi_program_change(val, 0);
+      break;
+    case MIDI_PRG_CC:
+      midi_program_change(g_synth.bank_num, val);
+      break;
+    default:
+      break;
+  }
+}
 
 void midi_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
@@ -38,37 +73,41 @@ void midi_srv_run(void *param) {
     switch(status & 0xf0) {
       case MIDI_NOTE_OFF:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Note Off: %d velocity: %d, ch: %d", data[0], data[1], (status & 0xf));
+        ESP_LOGD(TAG, "Note Off: %d velocity: %d, ch: %d", data[0], data[1], (status & 0xf));
+        midi_queue_note(NOTE_OFF, data[0], data[1], (status & 0xf));
         break;
       case MIDI_NOTE_ON:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Note On: %d velocity: %d, ch: %d", data[0], data[1], (status & 0xf));
+        ESP_LOGD(TAG, "Note On: %d velocity: %d, ch: %d", data[0], data[1], (status & 0xf));
+        midi_queue_note(NOTE_ON, data[0], data[1], (status & 0xf));
         break;
       case MIDI_POLY_PRESSURE:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Polyacustic Pressure: %d pressure: %d, ch: %d", data[0], data[1], (status & 0xf));
+        ESP_LOGD(TAG, "Polyacustic Pressure: %d pressure: %d, ch: %d", data[0], data[1], (status & 0xf));
         break;        
       case MIDI_CTRL_CHANGE:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Control Change: %d value: %d, ch: %d", data[0], data[1], (status & 0xf));
+        ESP_LOGD(TAG, "Control Change: %d value: %d, ch: %d", data[0], data[1], (status & 0xf));
+        midi_ctrl_change(data[0], data[1]);
         break;
       case MIDI_PRG_CHANGE:
         uart_read_bytes(MIDI_UART, &data, 1, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Program Change: %d ch: %d", data[0], (status & 0xf));
+        ESP_LOGD(TAG, "Program Change: %d ch: %d", data[0], (status & 0xf));
+        midi_program_change(g_synth.bank_num, data[0]);
         break;
       case MIDI_CHAN_PRESSURE:
         uart_read_bytes(MIDI_UART, &data, 1, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Channel Pressure: %d ch: %d", data[0], (status & 0xf));
+        ESP_LOGD(TAG, "Channel Pressure: %d ch: %d", data[0], (status & 0xf));
         break;
       case MIDI_PITCH_BEND:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
-        ESP_LOGI(TAG, "Pitch Bend: %d ch: %d", (data[0] | (data[1] << 7)), (status & 0xf));
+        ESP_LOGD(TAG, "Pitch Bend: %d ch: %d", (data[0] | (data[1] << 7)), (status & 0xf));
         break;
       case MIDI_SYSTEM:
-        ESP_LOGI(TAG, "System Message: %x", status);
+        ESP_LOGD(TAG, "System Message: %x", status);
         break;   
       default:
-        ESP_LOGI(TAG, "Skipped data byte: %x ", status);
+        ESP_LOGD(TAG, "Skipped data byte: %x ", status);
         break;     
     }
   }

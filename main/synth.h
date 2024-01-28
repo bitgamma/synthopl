@@ -2,86 +2,28 @@
 #define __SYNTH__
 
 #include <stdint.h>
+#include "opl_srv.h"
 
-#define PROFILE_MAX_NAME_LEN 12
+#define KEYBOARD_MAX_POLY 12
+#define NOTE_OFF 0x80
+#define VOICE_NONE NOTE_OFF
 
-typedef enum __attribute__ ((packed)) {
-  NOTE_ON,
-  NOTE_OFF,
-  OPL_CFG,
-  CHANNEL_CFG,
-  LOAD_PROGRAM
-} opl_cmd_t;
-
-typedef enum __attribute__ ((packed)) {
-  KEYBOARD_4OPS,
-  KEYBOARD_2OPS
-} opl_map_t;
-
-typedef enum __attribute__ ((packed)) {
-  BASS_DRUM,
-  SNARE_DRUM,
-  TOM,
-  CYMBAL,
-  HIHAT,
-  EXTRA,
-  KEYBOARD,
-} opl_channel_id_t;
-
-typedef struct __attribute__ ((packed)) {
+typedef struct {
+  uint64_t last_modified;
   uint8_t note;
-  uint8_t velocity;
-  uint8_t drum_channel;
-} opl_note_t;
+} voice_t;
 
-typedef struct __attribute__ ((packed)) {
-  opl_map_t map;
-  uint8_t trem_vib_deep; 
-} opl_config_t;
+typedef struct {
+  uint8_t bank_num;
+  uint8_t prg_num;
+  uint8_t drumkit_voices[DRUMKIT_SIZE];
+  voice_t keyboard_voices[KEYBOARD_MAX_POLY];
+  opl_program_t prg;
+} synth_t;
 
-typedef struct __attribute__ ((packed)) {
-  uint8_t trem_vibr_sust_ksr_fmf;
-  uint8_t ksl_output;
-  uint8_t attack_decay;
-  uint8_t sustain_release;
-  uint8_t waveform;
-} opl_operator_t;
+extern synth_t g_synth;
 
-typedef struct __attribute__ ((packed)) {
-  uint8_t ch_feedback_synth;
-  opl_operator_t ops[2];
-} opl_2ops_channel_t;
-
-typedef struct __attribute__ ((packed)) {
-  uint8_t ch_feedback_synth;
-  opl_operator_t ops[4];
-} opl_4ops_channel_t;
-
-typedef struct __attribute__ ((packed)) {
-  opl_channel_id_t id;
-  opl_4ops_channel_t channel;
-} opl_channel_cfg_t;
-
-typedef struct __attribute__((packed)) {
-  uint8_t bank;
-  uint8_t prg;
-} opl_load_prg_t;
-
-typedef struct __attribute__ ((packed)) {
-  opl_cmd_t cmd;
-  union {
-    opl_note_t note;
-    opl_config_t opl_cfg;
-    opl_channel_cfg_t channel_cfg;
-    opl_load_prg_t load_prg;
-  } params;
-} opl_msg_t;
-
-typedef struct __attribute__ ((packed)) {
-  char name[PROFILE_MAX_NAME_LEN];
-  opl_config_t config;
-  opl_4ops_channel_t keyboard;
-  opl_2ops_channel_t drumkit[6];
-} opl_program_t;
+uint8_t synth_add_voice(opl_note_t* note);
+uint8_t synth_remove_voice(opl_note_t* note);
 
 #endif

@@ -49,6 +49,6 @@ void opl_srv_start() {
   xTaskCreatePinnedToCore(opl_srv_run, "opl_srv", OPL_SRV_STACK_SIZE, NULL, 10, NULL, 1);
 }
 
-void opl_srv_queue_msg(opl_msg_t* msg) {
+void opl_srv_queue_msg(const opl_msg_t* msg) {
   xQueueSend(msg_queue, msg, pdTICKS_TO_MS(OPL_SRV_QUEUE_TIMEOUT_MS));
 }
