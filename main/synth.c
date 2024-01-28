@@ -35,9 +35,10 @@ static uint8_t synth_add_keyboard_voice(opl_note_t* note) {
   if (voice != VOICE_NONE) {
     g_synth.keyboard_voices[voice].last_modified = esp_timer_get_time();
     g_synth.keyboard_voices[voice].note = note->note;
+    return DRUMKIT_SIZE + voice;
   }
 
-  return voice;
+  return VOICE_NONE;
 }
 
 uint8_t synth_add_voice(opl_note_t* note) {
@@ -68,7 +69,7 @@ static uint8_t synth_remove_keyboard_voice(opl_note_t* note) {
     if (g_synth.keyboard_voices[i].note == note->note) {
       g_synth.keyboard_voices[i].last_modified = esp_timer_get_time();
       g_synth.keyboard_voices[i].note |= NOTE_OFF;
-      return i;
+      return DRUMKIT_SIZE + i;
     }
   }
 

@@ -9,6 +9,39 @@
 #define OPL_SRV_QUEUE_LEN 32
 #define OPL_SRV_QUEUE_TIMEOUT_MS 20
 
+#define OPL_CHANNEL_COUNT 18
+#define OPL_NO_OP 0xff
+#define OPL_NO_OPS OPL_NO_OP, OPL_NO_OP
+
+struct opl_channel_ops {
+  uint8_t op1;
+  uint8_t op2;
+  uint8_t op3;
+  uint8_t op4;
+};
+
+const uint8_t OPL_VOICE_TO_CHANNEL[OPL_CHANNEL_COUNT] = { 6, 7, 8, 15, 16, 17, 0, 1, 2, 9, 10, 11, 3, 4, 5, 12, 13, 14 };
+const struct opl_channel_ops OPL_CHANNEL_OPS[OPL_CHANNEL_COUNT] = { 
+  {0, 3, 6, 9},
+  {1, 4, 7, 10},
+  {2, 5, 8, 11},
+  {6, 9, OPL_NO_OPS},
+  {7, 10, OPL_NO_OPS},
+  {8, 11, OPL_NO_OPS},
+  {12, 15, OPL_NO_OPS},
+  {13, 16, OPL_NO_OPS},
+  {14, 17, OPL_NO_OPS},
+  {18, 21, 24, 27},
+  {19, 22, 25, 28},
+  {20, 23, 26, 29},
+  {24, 27, OPL_NO_OPS},
+  {25, 28, OPL_NO_OPS},
+  {26, 29, OPL_NO_OPS},
+  {30, 33, OPL_NO_OPS},
+  {31, 34, OPL_NO_OPS},
+  {32, 35, OPL_NO_OPS}
+};
+
 static QueueHandle_t msg_queue;
 static const char *TAG = "opl_srv";
 
