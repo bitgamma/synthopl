@@ -1,4 +1,5 @@
 #include "opl_srv.h"
+#include "opl_bus.h"
 #include "freertos/FreeRTOSConfig.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -121,6 +122,7 @@ void opl_srv_run(void *param) {
 }
 
 void opl_srv_start() {
+  opl_bus_init();
   msg_queue = xQueueCreate(OPL_SRV_QUEUE_LEN, sizeof(opl_msg_t));
   xTaskCreatePinnedToCore(opl_srv_run, "opl_srv", OPL_SRV_STACK_SIZE, NULL, 10, NULL, 1);
 }
