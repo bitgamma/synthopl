@@ -18,7 +18,7 @@ typedef struct {
 typedef struct {
   uint8_t bank_num;
   uint8_t prg_num;
-  uint8_t drumkit_voices[DRUMKIT_SIZE];
+  uint8_t drumkit_voices;
   voice_t keyboard_voices[KEYBOARD_MAX_POLY];
   opl_program_t prg;
 } synth_t;

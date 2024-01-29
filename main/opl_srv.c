@@ -217,6 +217,10 @@ void opl_srv_run(void *param) {
         ESP_LOGI(TAG, "Load Program: %d, bank: %d", msg.params.load_prg.prg, msg.params.load_prg.bank);
         opl_load_prg(&msg.params.load_prg);
         break; 
+      case DRUMKIT_NOTES:
+        ESP_LOGI(TAG, "Set drumkit notes");
+        memcpy(g_synth.prg.drumkit_notes, msg.params.drumkit_notes, DRUMKIT_SIZE);
+        break;
       default:
         ESP_LOGW(TAG, "Unknown Command %x", msg.cmd);
         break;

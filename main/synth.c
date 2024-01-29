@@ -6,15 +6,14 @@ const int KEYBOARD_POLY_CFG[2] = { 6, 12 };
 synth_t g_synth;
 
 static uint8_t synth_add_drumkit_voice(opl_note_t* note) {
-  // TODO: fix this, notes should be fixed
   uint8_t ch = note->note & 0x7;
 
   if (ch >= DRUMKIT_SIZE) {
     return VOICE_NONE;
   }
 
-  note->note &= 0xf8;
-  g_synth.drumkit_voices[ch] = note->note;
+  g_synth.drumkit_voices |= (1 << ch);
+  note->note = g_synth.prg.drumkit_notes[ch];
 
   return ch; 
 }
@@ -56,8 +55,8 @@ static uint8_t synth_remove_drumkit_voice(const opl_note_t* note) {
     return VOICE_NONE;
   }
 
-  if (g_synth.drumkit_voices[ch] == (note->note & 0xf8)) {
-    g_synth.drumkit_voices[ch] |= SYNTH_NOTE_OFF; 
+  if (g_synth.drumkit_voices & (1 << ch)) {
+    g_synth.drumkit_voices &= ~(1 << ch); 
     return ch;
   }
 
