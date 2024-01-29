@@ -28,6 +28,8 @@
 #define OPL_CH_KEYON_BLOCK_FREQH_BASE 0xb0
 #define OPL_CH_CHANNELS_FMF_SYNTH_BASE 0xc0
 
+#define OPL_CH_KEY_ON 0x20
+
 #define OPL_OPL3_CONFIG_ADDR 0x8004
 #define OPL_OPL3_ENABLE_ADDR 0x8005
 #define OPL_TREM_VIBR_PERCUSSION_ADDR 0x00bd
@@ -36,8 +38,8 @@
 #define OPL_OPL3_2OPS_MODE
 #define OPL_OPL3_ENABLE 0x01
 
-const uint8_t OPL_VOICE_TO_CHANNEL[OPL_CHANNEL_COUNT] = { 6, 7, 8, 15, 16, 17, 0, 1, 2, 9, 10, 11, 3, 4, 5, 12, 13, 14 };
-const uint8_t OPL_CHANNEL_OPS[OPL_CHANNEL_COUNT][4] = { 
+static const uint8_t OPL_VOICE_TO_CHANNEL[OPL_CHANNEL_COUNT] = { 6, 7, 8, 15, 16, 17, 0, 1, 2, 9, 10, 11, 3, 4, 5, 12, 13, 14 };
+static const uint8_t OPL_CHANNEL_OPS[OPL_CHANNEL_COUNT][4] = { 
   {0, 3, 6, 9},
   {1, 4, 7, 10},
   {2, 5, 8, 11},
@@ -58,10 +60,16 @@ const uint8_t OPL_CHANNEL_OPS[OPL_CHANNEL_COUNT][4] = {
   {32, 35, OPL_NO_OPS}
 };
 
-const uint8_t OPL_OP_REG_OFF[OPL_OP_COUNT_BANK] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15 };
+static const uint8_t OPL_OP_REG_OFF[OPL_OP_COUNT_BANK] = { 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15 };
+
+static const uint16_t OPL_NOTE_TO_FNUM[12] = {
+	345, 365, 387, 410, 435, 460, 488, 517, 547, 580, 615, 651
+};
+
+static const char *TAG = "opl_srv";
 
 static QueueHandle_t msg_queue;
-static const char *TAG = "opl_srv";
+static uint8_t fnum_cache[OPL_CHANNEL_COUNT];
 
 static inline uint16_t opl_channel_reg_addr(uint8_t base, uint8_t ch) {
   uint16_t hi;
@@ -102,12 +110,43 @@ static void opl_write_channel(uint8_t opl_ch, uint8_t feedback_synth, const opl_
   opl_bus_write(opl_channel_reg_addr(OPL_CH_CHANNELS_FMF_SYNTH_BASE, opl_ch), feedback_synth);
 }
 
-static void opl_note_on(const opl_note_t* note) {
-  //TODO: implement
+static inline uint16_t opl_midi_note_to_fnum(const opl_note_t* note) {
+  //TODO: consider velocity/pitch bend/detune/tune
+  uint16_t fnum = OPL_NOTE_TO_FNUM[note->note % 12];
+  uint16_t octave = (note->note / 12);
+
+  // MIDI notes start from -1 octave
+  if (octave < 1) {
+    octave = 1;
+  } else if (octave > 8) {
+    octave = 8;
+  }
+
+  return ((octave - 1) << 10) | fnum;
+}
+
+static void opl_note_on(opl_note_t* note) {
+  uint8_t voice_ch = synth_add_voice(note);
+  if (voice_ch == VOICE_NONE) {
+    return;
+  }
+
+  uint16_t fnum = opl_midi_note_to_fnum(note);
+  fnum_cache[voice_ch] = (fnum >> 8);
+
+  voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_FREQL_BASE, voice_ch), (uint8_t) (fnum & 0xff));
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, voice_ch), OPL_CH_KEY_ON | fnum_cache[voice_ch]);
 }
 
 static void opl_note_off(const opl_note_t* note) {
-  //TODO: implement
+  uint8_t voice_ch = synth_remove_voice(note);
+  if (voice_ch == VOICE_NONE) {
+    return;
+  }
+
+  voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, voice_ch), fnum_cache[voice_ch]);
 }
 
 static void opl_cfg(const opl_config_t* cfg) {

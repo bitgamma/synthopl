@@ -6,7 +6,7 @@
 
 #define KEYBOARD_MAX_POLY 12
 #define SYNTH_NOTE_OFF 0x80
-#define VOICE_NONE NOTE_OFF
+#define VOICE_NONE SYNTH_NOTE_OFF
 
 extern const int KEYBOARD_POLY_CFG[2];
 
@@ -26,6 +26,6 @@ typedef struct {
 extern synth_t g_synth;
 
 uint8_t synth_add_voice(opl_note_t* note);
-uint8_t synth_remove_voice(opl_note_t* note);
+uint8_t synth_remove_voice(const opl_note_t* note);
 
 #endif
