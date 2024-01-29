@@ -5,8 +5,10 @@
 #include "opl_srv.h"
 
 #define KEYBOARD_MAX_POLY 12
-#define NOTE_OFF 0x80
+#define SYNTH_NOTE_OFF 0x80
 #define VOICE_NONE NOTE_OFF
+
+extern const int KEYBOARD_POLY_CFG[2];
 
 typedef struct {
   uint64_t last_modified;

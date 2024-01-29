@@ -1,7 +1,7 @@
 #include "synth.h"
 #include "esp_timer.h"
 
-static const int KEYBOARD_POLY_CFG[] = { 6, 12 };
+const int KEYBOARD_POLY_CFG[2] = { 6, 12 };
 
 synth_t g_synth;
 
@@ -24,7 +24,7 @@ static uint8_t synth_add_keyboard_voice(opl_note_t* note) {
   int voice = VOICE_NONE;
 
   for (int i = 0; i < KEYBOARD_POLY_CFG[g_synth.prg.config.map]; i++) {
-    if (g_synth.keyboard_voices[i].note & NOTE_OFF) {
+    if (g_synth.keyboard_voices[i].note & SYNTH_NOTE_OFF) {
       if ((voice == VOICE_NONE) || 
         (g_synth.keyboard_voices[i].last_modified < g_synth.keyboard_voices[voice].last_modified)) {
         voice = i;
@@ -57,7 +57,7 @@ static uint8_t synth_remove_drumkit_voice(opl_note_t* note) {
   }
 
   if (g_synth.drumkit_voices[ch] == (note->note & 0xf8)) {
-    g_synth.drumkit_voices[ch] |= NOTE_OFF; 
+    g_synth.drumkit_voices[ch] |= SYNTH_NOTE_OFF; 
     return ch;
   }
 
@@ -68,7 +68,7 @@ static uint8_t synth_remove_keyboard_voice(opl_note_t* note) {
   for (int i = 0; i < KEYBOARD_POLY_CFG[g_synth.prg.config.map]; i++) {
     if (g_synth.keyboard_voices[i].note == note->note) {
       g_synth.keyboard_voices[i].last_modified = esp_timer_get_time();
-      g_synth.keyboard_voices[i].note |= NOTE_OFF;
+      g_synth.keyboard_voices[i].note |= SYNTH_NOTE_OFF;
       return DRUMKIT_SIZE + i;
     }
   }
