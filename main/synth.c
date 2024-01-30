@@ -1,9 +1,25 @@
+#include <string.h>
+
 #include "synth.h"
 #include "esp_timer.h"
+#include "nvs.h"
 
+const char* const HEX_DIGITS = "0123456789abcdef";
 const int KEYBOARD_POLY_CFG[2] = { 6, 12 };
 
 synth_t g_synth;
+
+static inline uint8_t base16_hexlet_decode(char c) {
+  if ((c >= '0') && (c <= '9')) {
+    return c - '0';
+  } else if ((c >= 'a') && (c <= 'f')) {
+    return 10 + (c - 'a');
+  } else if ((c >= 'A') && (c <= 'F')) {
+    return 10 + (c - 'A');
+  }
+
+  return 0xff;
+}
 
 static uint8_t synth_add_drumkit_voice(opl_note_t* note) {
   uint8_t ch = note->note & 0x7;
@@ -81,4 +97,24 @@ uint8_t synth_remove_voice(const opl_note_t* note) {
   } else {
     return synth_remove_keyboard_voice(note);
   }
+}
+
+static void prg_to_key(const opl_load_prg_t* prg, char key[5]) {
+  key[0] = HEX_DIGITS[(prg->bank >> 4)];
+  key[1] = HEX_DIGITS[(prg->bank & 0xf)];
+  key[2] = HEX_DIGITS[(prg->prg >> 4)];
+  key[3] = HEX_DIGITS[(prg->prg & 0xf)]; 
+  key[4] = '\0';
+}
+
+void synth_load_prg(const opl_load_prg_t* prg) {
+  char key[5];
+  prg_to_key(prg, key);
+  size_t len = sizeof(opl_program_t);
+  if (nvs_get_blob(g_synth.storage, key, &g_synth.prg, &len) != ESP_OK) {
+    memset(&g_synth.prg, 0, sizeof(opl_program_t));
+  }
+
+  g_synth.bank_num = prg->bank;
+  g_synth.prg_num = prg->prg;
 }

@@ -35,7 +35,7 @@
 #define OPL_TREM_VIBR_PERCUSSION_ADDR 0x00bd
 
 #define OPL_OPL3_4OPS_MODE 0x3f
-#define OPL_OPL3_2OPS_MODE
+#define OPL_OPL3_2OPS_MODE 0x00
 #define OPL_OPL3_ENABLE 0x01
 
 static const uint8_t OPL_VOICE_TO_CHANNEL[OPL_CHANNEL_COUNT] = { 6, 7, 8, 15, 16, 17, 0, 1, 2, 9, 10, 11, 3, 4, 5, 12, 13, 14 };
@@ -181,7 +181,32 @@ static void opl_channel_cfg(const opl_channel_cfg_t* ch_cfg) {
 }
 
 static void opl_load_prg(const opl_load_prg_t* prg) {
-  //TODO: implement
+  synth_load_prg(prg);
+
+  uint8_t ch_map;
+  uint8_t keyboard_voice_count;
+  uint8_t keyboard_op_count;
+
+  if (g_synth.prg.config.map == KEYBOARD_2OPS) {
+    ch_map = OPL_OPL3_2OPS_MODE;
+    keyboard_voice_count = KEYBOARD_MAX_POLY;
+    keyboard_op_count = 2;
+  } else {
+    ch_map = OPL_OPL3_2OPS_MODE;
+    keyboard_voice_count = (KEYBOARD_MAX_POLY / 2);
+    keyboard_op_count = 4;
+  }
+
+  opl_bus_write(OPL_OPL3_CONFIG_ADDR, ch_map);
+  opl_bus_write(OPL_TREM_VIBR_PERCUSSION_ADDR, g_synth.prg.config.trem_vib_deep);
+  
+  for (int i = 0; i < DRUMKIT_SIZE; i++) {
+    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.drumkit[i].ch_feedback_synth, g_synth.prg.drumkit[i].ops, 2);
+  }
+
+  for (int i = DRUMKIT_SIZE; i < (DRUMKIT_SIZE + keyboard_voice_count); i++) {
+    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.drumkit[i].ch_feedback_synth, g_synth.prg.drumkit[i].ops, keyboard_op_count);
+  }
 }
 
 void opl_srv_run(void *param) {

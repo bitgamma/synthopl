@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#define PROFILE_MAX_NAME_LEN 12
+#define PROGRAM_MAX_NAME_LEN 12
 #define DRUMKIT_SIZE 6
 
 typedef enum __attribute__ ((packed)) {
@@ -81,7 +81,8 @@ typedef struct __attribute__ ((packed)) {
 } opl_msg_t;
 
 typedef struct __attribute__ ((packed)) {
-  char name[PROFILE_MAX_NAME_LEN];
+  uint8_t ver;
+  char name[PROGRAM_MAX_NAME_LEN];
   opl_config_t config;
   opl_4ops_channel_t keyboard;
   opl_2ops_channel_t drumkit[DRUMKIT_SIZE];
