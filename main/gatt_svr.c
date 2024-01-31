@@ -13,6 +13,7 @@
 #include "services/dis/ble_svc_dis.h"
 #include "gatt_svr.h"
 #include "opl_srv.h"
+#include "synth.h"
 
 static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
@@ -79,7 +80,29 @@ static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,
 }
 
 static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return BLE_ATT_ERR_REQ_NOT_SUPPORTED;
+  if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
+    synth_prg_dump_t prg;
+    synth_prg_dump(&prg);
+    if (os_mbuf_append(ctxt->om, &prg, sizeof(synth_prg_dump_t)) != 0) {
+      return BLE_ATT_ERR_INSUFFICIENT_RES;
+    }
+  } else {
+    synth_prg_desc_t prg_desc;
+    memset(&prg_desc, 0, sizeof(synth_prg_desc_t));
+    uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
+  
+    if (om_len > sizeof(synth_prg_desc_t)) {
+      return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    }
+
+    ble_hs_mbuf_to_flat(ctxt->om, &prg_desc, om_len, &om_len);
+
+    if (synth_prg_write(&prg_desc) != ESP_OK) {
+      return BLE_ATT_ERR_UNLIKELY;
+    }
+  }
+
+  return 0;
 }
 
 void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
@@ -185,11 +208,11 @@ static void ble_synth_prph_advertise(void) {
   }
 }
 
-void ble_synth_prph_tx_htp_stop(void) {
+void ble_synth_prph_tx_stop(void) {
 
 }
 
-void ble_synth_prph_tx_htp_reset(void) {
+void ble_synth_prph_tx_reset(void) {
 
 }
 
@@ -216,7 +239,7 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
     MODLOG_DFLT(INFO, "disconnect; reason=%d\n", event->disconnect.reason);
 
     ble_synth_prph_advertise();
-    ble_synth_prph_tx_htp_stop();
+    ble_synth_prph_tx_stop();
 
     ble_synth_on_disconnect(event->disconnect.conn.conn_handle);
     break;
@@ -230,7 +253,7 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
     ble_synth_subscribe(event->subscribe.conn_handle, event->subscribe.attr_handle);
 
     if (event->subscribe.cur_notify) {
-      ble_synth_prph_tx_htp_reset();
+      ble_synth_prph_tx_reset();
     }
 
     ESP_LOGI("BLE_GAP_SUBSCRIBE_EVENT", "conn_handle from subscribe=%d", conn_handle);

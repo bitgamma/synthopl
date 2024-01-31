@@ -99,17 +99,17 @@ uint8_t synth_remove_voice(const opl_note_t* note) {
   }
 }
 
-static void prg_to_key(const opl_load_prg_t* prg, char key[5]) {
-  key[0] = HEX_DIGITS[(prg->bank >> 4)];
-  key[1] = HEX_DIGITS[(prg->bank & 0xf)];
-  key[2] = HEX_DIGITS[(prg->prg >> 4)];
-  key[3] = HEX_DIGITS[(prg->prg & 0xf)]; 
+static void prg_to_key(uint8_t bank, uint8_t prg, char key[5]) {
+  key[0] = HEX_DIGITS[bank >> 4];
+  key[1] = HEX_DIGITS[bank & 0xf];
+  key[2] = HEX_DIGITS[prg >> 4];
+  key[3] = HEX_DIGITS[prg & 0xf]; 
   key[4] = '\0';
 }
 
 void synth_load_prg(const opl_load_prg_t* prg) {
   char key[5];
-  prg_to_key(prg, key);
+  prg_to_key(prg->bank, prg->prg, key);
   size_t len = sizeof(opl_program_t);
   if (nvs_get_blob(g_synth.storage, key, &g_synth.prg, &len) != ESP_OK) {
     memset(&g_synth.prg, 0, sizeof(opl_program_t));
@@ -117,4 +117,25 @@ void synth_load_prg(const opl_load_prg_t* prg) {
 
   g_synth.bank_num = prg->bank;
   g_synth.prg_num = prg->prg;
+}
+
+void synth_prg_dump(synth_prg_dump_t* out) {
+  out->bank_num = g_synth.bank_num;
+  out->prg_num = g_synth.prg_num;
+  memcpy(&out->prg, &g_synth.prg, sizeof(opl_program_t));
+}
+
+esp_err_t synth_prg_write(const synth_prg_desc_t* prg_desc) {
+  memcpy(&g_synth.prg.name, &prg_desc->prg_name, PROGRAM_MAX_NAME_LEN);
+  
+  char key[5];
+  prg_to_key(prg_desc->bank_num, prg_desc->prg_num, key);
+  if (nvs_set_blob(g_synth.storage, key, &g_synth.prg, sizeof(opl_program_t)) != ESP_OK) {
+    return ESP_FAIL;
+  }
+
+  g_synth.bank_num = prg_desc->bank_num;
+  g_synth.prg_num = prg_desc->prg_num;
+
+  return ESP_OK;
 }
