@@ -9,7 +9,7 @@
 #include "freertos/queue.h"
 #include "esp_log.h"
 
-#define OPL_SRV_STACK_SIZE 2048
+#define OPL_SRV_STACK_SIZE 4096
 #define OPL_SRV_QUEUE_LEN 32
 #define OPL_SRV_QUEUE_TIMEOUT_MS 20
 
