@@ -99,12 +99,17 @@ uint8_t synth_remove_voice(const opl_note_t* note) {
   }
 }
 
-static void prg_to_key(uint8_t bank, uint8_t prg, char key[5]) {
+static inline void prg_to_key(uint8_t bank, uint8_t prg, char key[5]) {
   key[0] = HEX_DIGITS[bank >> 4];
   key[1] = HEX_DIGITS[bank & 0xf];
   key[2] = HEX_DIGITS[prg >> 4];
   key[3] = HEX_DIGITS[prg & 0xf]; 
   key[4] = '\0';
+}
+
+static inline void key_to_prog(const char *key, uint8_t* bank, uint8_t* prg) {
+  *bank = (base16_hexlet_decode(key[0]) << 4) | base16_hexlet_decode(key[1]);
+  *prg = (base16_hexlet_decode(key[2]) << 4) | base16_hexlet_decode(key[3]);
 }
 
 void synth_load_prg(const opl_load_prg_t* prg) {
@@ -138,4 +143,46 @@ esp_err_t synth_prg_write(const synth_prg_desc_t* prg_desc) {
   g_synth.prg_num = prg_desc->prg_num;
 
   return ESP_OK;
+}
+
+void synth_prg_list(synth_prg_list_t* out) {
+  esp_err_t err = ESP_OK;
+
+  if (g_synth.prg_list_it == NULL) {
+    out->count = SYNTH_DESC_LIST_FIRST;
+    err = nvs_entry_find(PROGRAM_PART_NAME, PROGRAM_NS, NVS_TYPE_BLOB, &g_synth.prg_list_it);
+    
+    if (err != ESP_OK) {
+      g_synth.prg_list_it = NULL;
+      out->count |= SYNTH_DESC_LIST_LAST;
+      return;    
+    }
+  }
+
+  uint8_t count = 0;
+  opl_program_t prg;
+
+  while(err == ESP_OK) {
+    nvs_entry_info_t info;
+    nvs_entry_info(g_synth.prg_list_it, &info);
+    
+    size_t len;
+    nvs_get_blob(g_synth.storage, info.key, &prg, &len);
+    memcpy(out->descriptors[count].prg_name, prg.name, PROGRAM_MAX_NAME_LEN);
+    key_to_prog(info.key, &out->descriptors[count].bank_num, &out->descriptors[count].prg_num);
+    
+    err = nvs_entry_next(&g_synth.prg_list_it);
+
+    if (++count >= DESCRIPTOR_MAX_COUNT) {
+      break;
+    }
+  }
+
+  out->count |= count;
+
+  if (err != ESP_OK) {
+    out->count |= SYNTH_DESC_LIST_LAST;
+    nvs_release_iterator(g_synth.prg_list_it);
+    g_synth.prg_list_it = NULL;
+  }
 }

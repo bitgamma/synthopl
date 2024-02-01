@@ -23,9 +23,9 @@ static uint8_t ble_synth_prph_addr_type;
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
 
-static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
-static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   {
@@ -59,7 +59,7 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   },
 };
 
-static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
   uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
   
   if (om_len > sizeof(opl_msg_t)) {
@@ -75,11 +75,18 @@ static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle,struc
   return 0;
 }
 
-static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  return BLE_ATT_ERR_REQ_NOT_SUPPORTED;
+static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  synth_prg_list_t list;
+  synth_prg_list(&list);
+
+  if (os_mbuf_append(ctxt->om, &list, 1 + ((list.count & 0x3f) * sizeof(synth_prg_desc_t))) != 0) {
+    return BLE_ATT_ERR_INSUFFICIENT_RES;
+  }
+
+  return 0;
 }
 
-static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle,struct ble_gatt_access_ctxt *ctxt, void *arg) {
+static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
   if (ctxt->op == BLE_GATT_ACCESS_OP_READ_CHR) {
     synth_prg_dump_t prg;
     synth_prg_dump(&prg);
