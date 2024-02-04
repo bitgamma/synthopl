@@ -41,7 +41,7 @@ esp_err_t opl_bus_init() {
   };
 
   spi_device_interface_config_t devcfg = {
-    .clock_speed_hz = 20 * 1000 * 1000,
+    .clock_speed_hz = SPI_MASTER_FREQ_20M,
     .mode = 0,
     .spics_io_num = OPL_DATA_LATCH_PIN,
     .queue_size = 1,
@@ -64,7 +64,7 @@ esp_err_t opl_bus_write(uint16_t addr, uint8_t data) {
   esp_err_t ret;
 
   spi_transaction_t tx = {
-    .length = 1,
+    .length = 8,
     .flags = SPI_TRANS_USE_TXDATA
   };
 
