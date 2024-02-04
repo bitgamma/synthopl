@@ -5,8 +5,6 @@
 #include "opl_srv.h"
 #include "nvs_flash.h"
 
-#define PROGRAM_PART_NAME "prgs"
-#define PROGRAM_NS "prg"
 #define KEYBOARD_MAX_POLY 12
 #define SYNTH_NOTE_OFF 0x80
 #define VOICE_NONE SYNTH_NOTE_OFF
@@ -50,6 +48,7 @@ typedef struct __attribute__((packed)) {
 
 extern synth_t g_synth;
 
+void synth_init();
 uint8_t synth_add_voice(opl_note_t* note);
 uint8_t synth_remove_voice(const opl_note_t* note);
 void synth_load_prg(const opl_load_prg_t* prg);

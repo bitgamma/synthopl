@@ -12,16 +12,7 @@ void app_main(void) {
   }
   ESP_ERROR_CHECK(ret);
 
-  ret = nvs_flash_init_partition(PROGRAM_PART_NAME);
-  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-    ESP_ERROR_CHECK(nvs_flash_erase());
-    ret = nvs_flash_init_partition(PROGRAM_PART_NAME);
-  }
-  ESP_ERROR_CHECK(ret);
-
-  ret = nvs_open_from_partition(PROGRAM_PART_NAME, PROGRAM_NS, NVS_READWRITE, &g_synth.storage);
-  ESP_ERROR_CHECK(ret);
-  
+  synth_init();  
   opl_srv_start();
   midi_srv_start();
   gatt_srv_start();

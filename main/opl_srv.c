@@ -192,7 +192,7 @@ static void opl_load_prg(const opl_load_prg_t* prg) {
     keyboard_voice_count = KEYBOARD_MAX_POLY;
     keyboard_op_count = 2;
   } else {
-    ch_map = OPL_OPL3_2OPS_MODE;
+    ch_map = OPL_OPL3_4OPS_MODE;
     keyboard_voice_count = (KEYBOARD_MAX_POLY / 2);
     keyboard_op_count = 4;
   }

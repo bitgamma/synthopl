@@ -4,6 +4,9 @@
 #include "esp_timer.h"
 #include "nvs.h"
 
+#define PROGRAM_PART_NAME "prgs"
+#define PROGRAM_NS "prg"
+
 const char* const HEX_DIGITS = "0123456789abcdef";
 const int KEYBOARD_POLY_CFG[2] = { 6, 12 };
 
@@ -184,5 +187,21 @@ void synth_prg_list(synth_prg_list_t* out) {
     out->count |= SYNTH_DESC_LIST_LAST;
     nvs_release_iterator(g_synth.prg_list_it);
     g_synth.prg_list_it = NULL;
+  }
+}
+
+void synth_init() {
+  esp_err_t ret = nvs_flash_init_partition(PROGRAM_PART_NAME);
+  if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    ESP_ERROR_CHECK(nvs_flash_erase());
+    ret = nvs_flash_init_partition(PROGRAM_PART_NAME);
+  }
+  ESP_ERROR_CHECK(ret);
+
+  ret = nvs_open_from_partition(PROGRAM_PART_NAME, PROGRAM_NS, NVS_READWRITE, &g_synth.storage);
+  ESP_ERROR_CHECK(ret);
+
+  for (int i = 0; i < KEYBOARD_MAX_POLY; i++) {
+    g_synth.keyboard_voices->note |= SYNTH_NOTE_OFF;   
   }
 }
