@@ -205,7 +205,7 @@ static void opl_load_prg(const opl_load_prg_t* prg) {
   }
 
   for (int i = DRUMKIT_SIZE; i < (DRUMKIT_SIZE + keyboard_voice_count); i++) {
-    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.drumkit[i].ch_feedback_synth, g_synth.prg.drumkit[i].ops, keyboard_op_count);
+    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.keyboard.ch_feedback_synth, g_synth.prg.keyboard.ops, keyboard_op_count);
   }
 }
 
