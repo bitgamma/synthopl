@@ -131,10 +131,11 @@ static void opl_note_on(opl_note_t* note) {
     return;
   }
 
+  voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
+
   uint16_t fnum = opl_midi_note_to_fnum(note);
   fnum_cache[voice_ch] = (fnum >> 8);
 
-  voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
   opl_bus_write(opl_channel_reg_addr(OPL_CH_FREQL_BASE, voice_ch), (uint8_t) (fnum & 0xff));
   opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, voice_ch), OPL_CH_KEY_ON | fnum_cache[voice_ch]);
 }
