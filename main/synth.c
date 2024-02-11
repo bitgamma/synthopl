@@ -202,6 +202,6 @@ void synth_init() {
   ESP_ERROR_CHECK(ret);
 
   for (int i = 0; i < KEYBOARD_MAX_POLY; i++) {
-    g_synth.keyboard_voices->note |= SYNTH_NOTE_OFF;   
+    g_synth.keyboard_voices[i].note |= SYNTH_NOTE_OFF;   
   }
 }
