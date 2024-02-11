@@ -213,7 +213,8 @@ void opl_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
 
   opl_bus_write(OPL_OPL3_ENABLE_ADDR, OPL_OPL3_ENABLE);
-  opl_bus_write(OPL_OPL3_CONFIG_ADDR, OPL_OPL3_4OPS_MODE);
+  const opl_load_prg_t prg = { .bank = 0, .prg = 0 };
+  opl_load_prg(&prg);
 
   while(1) {
     opl_msg_t msg;
@@ -223,27 +224,27 @@ void opl_srv_run(void *param) {
 
     switch(msg.cmd) {
       case NOTE_ON:
-        ESP_LOGI(TAG, "Note On: %d ch: %d", msg.params.note.note, msg.params.note.drum_channel);
+        ESP_LOGD(TAG, "Note On: %d ch: %d", msg.params.note.note, msg.params.note.drum_channel);
         opl_note_on(&msg.params.note);
         break;
       case NOTE_OFF:
-        ESP_LOGI(TAG, "Note Off: %d ch: %d", msg.params.note.note, msg.params.note.drum_channel);
+        ESP_LOGD(TAG, "Note Off: %d ch: %d", msg.params.note.note, msg.params.note.drum_channel);
         opl_note_off(&msg.params.note);
         break;
       case OPL_CFG:
-        ESP_LOGI(TAG, "Global OPL Config: map: %d options: %x", msg.params.opl_cfg.map, msg.params.opl_cfg.trem_vib_deep);
+        ESP_LOGD(TAG, "Global OPL Config: map: %d options: %x", msg.params.opl_cfg.map, msg.params.opl_cfg.trem_vib_deep);
         opl_cfg(&msg.params.opl_cfg);
         break;
       case CHANNEL_CFG:
-        ESP_LOGI(TAG, "Channel Config: %d", msg.params.channel_cfg.id);
+        ESP_LOGD(TAG, "Channel Config: %d", msg.params.channel_cfg.id);
         opl_channel_cfg(&msg.params.channel_cfg);
         break;
       case LOAD_PROGRAM:
-        ESP_LOGI(TAG, "Load Program: %d, bank: %d", msg.params.load_prg.prg, msg.params.load_prg.bank);
+        ESP_LOGD(TAG, "Load Program: %d, bank: %d", msg.params.load_prg.prg, msg.params.load_prg.bank);
         opl_load_prg(&msg.params.load_prg);
         break; 
       case DRUMKIT_NOTES:
-        ESP_LOGI(TAG, "Set drumkit notes");
+        ESP_LOGD(TAG, "Set drumkit notes");
         memcpy(g_synth.prg.drumkit_notes, msg.params.drumkit_notes, DRUMKIT_SIZE);
         break;
       default:
