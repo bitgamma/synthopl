@@ -107,7 +107,11 @@ static void opl_write_channel(uint8_t opl_ch, uint8_t feedback_synth, const opl_
     opl_bus_write(opl_op_reg_addr(OPL_OP_WAVEFORM_BASE, op_id), ops[i].waveform);
   }
 
-  opl_bus_write(opl_channel_reg_addr(OPL_CH_CHANNELS_FMF_SYNTH_BASE, opl_ch), feedback_synth);
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_CHANNELS_FMF_SYNTH_BASE, opl_ch), (feedback_synth & 0x3f));
+
+  if (op_count == 4) {
+    opl_bus_write(opl_channel_reg_addr(OPL_CH_CHANNELS_FMF_SYNTH_BASE, (opl_ch + 3)), ((feedback_synth & 0x3e) | ((feedback_synth & 0x80) >> 7)));
+  }
 }
 
 static inline uint16_t opl_midi_note_to_fnum(const opl_note_t* note) {
