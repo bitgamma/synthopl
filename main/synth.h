@@ -22,6 +22,7 @@ typedef struct {
 typedef struct {
   nvs_handle_t storage;
   nvs_iterator_t prg_list_it;
+  int16_t pitch_bend;
   uint8_t bank_num;
   uint8_t prg_num;
   uint8_t drumkit_voices;

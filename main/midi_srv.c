@@ -59,6 +59,13 @@ static void midi_ctrl_change(uint8_t cc, uint8_t val) {
   }
 }
 
+static void midi_pitch_bend(int16_t val) {
+  opl_msg_t msg;
+  msg.cmd = PITCH_BEND;
+  msg.params.bend = (val >> 5) - 256;
+  opl_srv_queue_msg(&msg);   
+}
+
 void midi_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
 
@@ -102,6 +109,7 @@ void midi_srv_run(void *param) {
       case MIDI_PITCH_BEND:
         uart_read_bytes(MIDI_UART, &data, 2, pdTICKS_TO_MS(RECV_TIMEOUT));
         ESP_LOGD(TAG, "Pitch Bend: %d ch: %d", (data[0] | (data[1] << 7)), (status & 0xf));
+        midi_pitch_bend((int16_t)(data[0] | (data[1] << 7)));
         break;
       case MIDI_SYSTEM:
         ESP_LOGD(TAG, "System Message: %x", status);

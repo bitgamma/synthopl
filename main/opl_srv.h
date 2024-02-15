@@ -13,6 +13,7 @@ typedef enum __attribute__ ((packed)) {
   CHANNEL_CFG,
   LOAD_PROGRAM,
   DRUMKIT_NOTES,
+  PITCH_BEND,
 } opl_cmd_t;
 
 typedef enum __attribute__ ((packed)) {
@@ -77,6 +78,7 @@ typedef struct __attribute__ ((packed)) {
     opl_channel_cfg_t channel_cfg;
     opl_load_prg_t load_prg;
     uint8_t drumkit_notes[DRUMKIT_SIZE];
+    int16_t bend;
   } params;
 } opl_msg_t;
 

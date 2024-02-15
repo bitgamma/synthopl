@@ -115,11 +115,15 @@ static void opl_write_channel(uint8_t opl_ch, uint8_t feedback_synth, const opl_
 }
 
 static inline uint16_t opl_midi_note_to_fnum(const opl_note_t* note) {
-  //TODO: consider velocity/pitch bend/detune/tune
   uint16_t fnum = OPL_NOTE_TO_FNUM[note->note % 12];
   uint16_t octave = (note->note / 12);
 
+  if (!note->drum_channel) {
+    fnum += g_synth.pitch_bend;
+  }
+
   // MIDI notes start from -1 octave
+  // TODO: actually octave -1 and 0 can both be rendered with block 0, add the fnums if it makes sense
   if (octave < 1) {
     octave = 1;
   } else if (octave > 8) {
@@ -130,6 +134,7 @@ static inline uint16_t opl_midi_note_to_fnum(const opl_note_t* note) {
 }
 
 static void opl_note_on(opl_note_t* note) {
+  //TODO: consider velocity
   uint8_t voice_ch = synth_add_voice(note);
   if (voice_ch == VOICE_NONE) {
     return;
@@ -214,6 +219,11 @@ static void opl_load_prg(const opl_load_prg_t* prg) {
   }
 }
 
+void opl_pitch_bend(int16_t bend) {
+  //TODO: recalculate all voices
+  g_synth.pitch_bend = bend;
+}
+
 void opl_srv_run(void *param) {
   ESP_LOGI(TAG, "ready");
 
@@ -252,6 +262,10 @@ void opl_srv_run(void *param) {
         ESP_LOGD(TAG, "Set drumkit notes");
         memcpy(g_synth.prg.drumkit_notes, msg.params.drumkit_notes, DRUMKIT_SIZE);
         break;
+      case PITCH_BEND:
+        ESP_LOGD(TAG, "Pitch bend: %d", msg.params.bend);
+        opl_pitch_bend(msg.params.bend);
+        break;        
       default:
         ESP_LOGW(TAG, "Unknown Command %x", msg.cmd);
         break;
