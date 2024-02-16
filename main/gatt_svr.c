@@ -208,7 +208,7 @@ static void update_ota_control(uint16_t conn_handle) {
         updating = true;
 
         packet_size = (gatt_svr_chr_ota_data_val[1] << 8) + gatt_svr_chr_ota_data_val[0];
-        ESP_LOGI(TAG, "Packet size is: %d", packet_size);
+        ESP_LOGD(TAG, "Packet size is: %d", packet_size);
 
         num_pkgs_received = 0;
       }
@@ -292,7 +292,7 @@ static int gatt_svr_chr_ota_data_cb(uint16_t conn_handle, uint16_t attr_handle, 
     }
 
     num_pkgs_received++;
-    ESP_LOGI(TAG, "Received packet %d", num_pkgs_received);
+    ESP_LOGD(TAG, "Received packet %d", num_pkgs_received);
   }
 
   return rc;

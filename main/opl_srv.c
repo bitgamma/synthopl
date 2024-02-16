@@ -133,6 +133,14 @@ static inline uint16_t opl_midi_note_to_fnum(const opl_note_t* note) {
   return ((octave - 1) << 10) | fnum;
 }
 
+static void opl_set_fnum(uint8_t channel, const opl_note_t* note, uint8_t onflag) {
+  uint16_t fnum = opl_midi_note_to_fnum(note);
+  fnum_cache[channel] = (fnum >> 8);
+
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_FREQL_BASE, channel), (uint8_t) (fnum & 0xff));
+  opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, channel), onflag | fnum_cache[channel]);  
+}
+
 static void opl_note_on(opl_note_t* note) {
   //TODO: consider velocity
   uint8_t voice_ch = synth_add_voice(note);
@@ -142,11 +150,7 @@ static void opl_note_on(opl_note_t* note) {
 
   voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
 
-  uint16_t fnum = opl_midi_note_to_fnum(note);
-  fnum_cache[voice_ch] = (fnum >> 8);
-
-  opl_bus_write(opl_channel_reg_addr(OPL_CH_FREQL_BASE, voice_ch), (uint8_t) (fnum & 0xff));
-  opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, voice_ch), OPL_CH_KEY_ON | fnum_cache[voice_ch]);
+  opl_set_fnum(voice_ch, note, OPL_CH_KEY_ON);
 }
 
 static void opl_note_off(const opl_note_t* note) {
@@ -159,12 +163,19 @@ static void opl_note_off(const opl_note_t* note) {
   opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, voice_ch), fnum_cache[voice_ch]);
 }
 
+static void opl_load_keyboard() {
+  int op_count = g_synth.prg.config.map ? 2 : 4;
+  int ch_end = KEYBOARD_POLY_CFG[g_synth.prg.config.map] + DRUMKIT_SIZE;
+  for (int i = DRUMKIT_SIZE; i < ch_end; i++) {
+    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.keyboard.ch_feedback_synth, g_synth.prg.keyboard.ops, op_count);
+  }
+}
+
 static void opl_cfg(const opl_config_t* cfg) {
   if (g_synth.prg.config.map != cfg->map) {
-    //TODO: when switching mode the keyboard channels must be reconfigured. Maybe is not a bad idea to 
-    // automatically reconfigure them to provide a fallback in case the client doesn't do it.
     g_synth.prg.config.map = cfg->map & 0x1;
     opl_bus_write(OPL_OPL3_CONFIG_ADDR, g_synth.prg.config.map ? OPL_OPL3_2OPS_MODE : OPL_OPL3_4OPS_MODE);
+    opl_load_keyboard();
   }
 
   g_synth.prg.config.trem_vib_deep = cfg->trem_vib_deep & 0xc0;
@@ -182,46 +193,32 @@ static void opl_channel_cfg(const opl_channel_cfg_t* ch_cfg) {
     opl_write_channel(OPL_VOICE_TO_CHANNEL[ch_cfg->id], ch_cfg->channel.ch_feedback_synth, ch_cfg->channel.ops, 2);
   } else {
     memcpy(&g_synth.prg.keyboard, &ch_cfg->channel, sizeof(opl_4ops_channel_t));
-    int op_count = g_synth.prg.config.map ? 2 : 4;
-    int ch_end = KEYBOARD_POLY_CFG[g_synth.prg.config.map] + DRUMKIT_SIZE;
-    for (int i = DRUMKIT_SIZE; i < ch_end; i++) {
-      opl_write_channel(OPL_VOICE_TO_CHANNEL[i], ch_cfg->channel.ch_feedback_synth, ch_cfg->channel.ops, op_count);
-    }
+    opl_load_keyboard();
   }
 }
 
 static void opl_load_prg(const opl_load_prg_t* prg) {
   synth_load_prg(prg);
 
-  uint8_t ch_map;
-  uint8_t keyboard_voice_count;
-  uint8_t keyboard_op_count;
-
-  if (g_synth.prg.config.map == KEYBOARD_2OPS) {
-    ch_map = OPL_OPL3_2OPS_MODE;
-    keyboard_voice_count = KEYBOARD_MAX_POLY;
-    keyboard_op_count = 2;
-  } else {
-    ch_map = OPL_OPL3_4OPS_MODE;
-    keyboard_voice_count = (KEYBOARD_MAX_POLY / 2);
-    keyboard_op_count = 4;
-  }
-
-  opl_bus_write(OPL_OPL3_CONFIG_ADDR, ch_map);
+  opl_bus_write(OPL_OPL3_CONFIG_ADDR, g_synth.prg.config.map ? OPL_OPL3_2OPS_MODE : OPL_OPL3_4OPS_MODE);
   opl_bus_write(OPL_TREM_VIBR_PERCUSSION_ADDR, g_synth.prg.config.trem_vib_deep);
   
   for (int i = 0; i < DRUMKIT_SIZE; i++) {
     opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.drumkit[i].ch_feedback_synth, g_synth.prg.drumkit[i].ops, 2);
   }
 
-  for (int i = DRUMKIT_SIZE; i < (DRUMKIT_SIZE + keyboard_voice_count); i++) {
-    opl_write_channel(OPL_VOICE_TO_CHANNEL[i], g_synth.prg.keyboard.ch_feedback_synth, g_synth.prg.keyboard.ops, keyboard_op_count);
-  }
+  opl_load_keyboard();
 }
 
 void opl_pitch_bend(int16_t bend) {
   //TODO: recalculate all voices
   g_synth.pitch_bend = bend;
+  opl_note_t note = {.drum_channel = 0, .velocity = 127};
+  for (int i = 0; i < KEYBOARD_POLY_CFG[g_synth.prg.config.map]; i++) {
+    note.note = g_synth.keyboard_voices[i].note & 0x7f;
+    uint8_t onflag = ((~g_synth.keyboard_voices[i].note) & SYNTH_NOTE_OFF) >> 2;
+    opl_set_fnum(OPL_VOICE_TO_CHANNEL[i], &note, onflag);
+  }
 }
 
 void opl_srv_run(void *param) {
