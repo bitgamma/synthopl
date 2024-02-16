@@ -266,13 +266,10 @@ static int gatt_svr_chr_ota_control_cb(uint16_t conn_handle, uint16_t attr_handl
     case BLE_GATT_ACCESS_OP_READ_CHR:
       rc = os_mbuf_append(ctxt->om, &gatt_svr_chr_ota_control_val, length);
       return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
-      break;
-
     case BLE_GATT_ACCESS_OP_WRITE_CHR:
       rc = gatt_svr_chr_write(ctxt->om, length, &gatt_svr_chr_ota_control_val);
       update_ota_control(conn_handle);
       return rc;
-      break;
     default:
       break;
   }
