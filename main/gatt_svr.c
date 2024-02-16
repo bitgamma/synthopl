@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "esp_ota_ops.h"
 #include "freertos/FreeRTOSConfig.h"
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
@@ -14,18 +15,37 @@
 #include "gatt_svr.h"
 #include "opl_srv.h"
 #include "synth.h"
+#include "esp_log.h"
+
+#define REBOOT_DEEP_SLEEP_TIMEOUT 500
 
 static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
+static const char *TAG = "gatt_srv";
 
 static uint16_t conn_handle;
 static uint8_t ble_synth_prph_addr_type;
+
+static uint8_t gatt_svr_chr_ota_control_val;
+static uint8_t gatt_svr_chr_ota_data_val[512];
+
+static uint16_t ota_control_val_handle;
+static uint16_t ota_data_val_handle;
+
+static const esp_partition_t *update_partition;
+static esp_ota_handle_t update_handle;
+static bool updating = false;
+static uint16_t num_pkgs_received = 0;
+static uint16_t packet_size = 0;
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg);
 
 static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_list_prg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
+
+static int gatt_svr_chr_ota_control_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
+static int gatt_svr_chr_ota_data_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg);
 
 static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   {
@@ -55,20 +75,58 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
   }, 
 
   {
+    /* Service: OTA Update */
+    .type = BLE_GATT_SVC_TYPE_PRIMARY,
+    .uuid = BLE_UUID128_DECLARE(GATT_OTA_UUID),
+    .characteristics = (struct ble_gatt_chr_def[]) { 
+      {
+        /* Characteristic: OPL Message */
+        .uuid = BLE_UUID128_DECLARE(GATT_OTA_CHR_CTRL),
+        .access_cb = gatt_svr_chr_ota_control_cb,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &ota_control_val_handle,
+      }, {
+        /* Characteristic: List programs */
+        .uuid = BLE_UUID128_DECLARE(GATT_OTA_CHR_DATA),
+        .access_cb = gatt_svr_chr_ota_data_cb,
+        .flags = BLE_GATT_CHR_F_WRITE,
+        .val_handle = &ota_data_val_handle,
+      }, {
+        0, /* No more characteristics in this service */
+      },
+    }
+  }, 
+
+  {
     0, /* No more services */
   },
 };
 
-static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
-  uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
-  
-  if (om_len > sizeof(opl_msg_t)) {
+static inline int gatt_svr_chr_write(struct os_mbuf *om, uint16_t max_len, void *dst) {
+  uint16_t om_len;
+  int rc;
+
+  om_len = OS_MBUF_PKTLEN(om);
+  if (om_len > max_len) {
     return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
   }
 
+  rc = ble_hs_mbuf_to_flat(om, dst, max_len, NULL);
+  if (rc != 0) {
+    return BLE_ATT_ERR_UNLIKELY;
+  }
+
+  return 0;
+}
+
+static int gatt_svr_chr_opl_msg(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
   opl_msg_t msg;
   memset(&msg, 0, sizeof(opl_msg_t));
-  ble_hs_mbuf_to_flat(ctxt->om, &msg, om_len, &om_len);
+
+  int rc = gatt_svr_chr_write(ctxt->om, sizeof(opl_msg_t), &msg);
+  if (rc != 0) {
+    return rc;
+  }
 
   opl_srv_queue_msg(&msg);
 
@@ -96,14 +154,12 @@ static int gatt_svr_chr_opl_program(uint16_t conn_handle, uint16_t attr_handle, 
   } else {
     synth_prg_desc_t prg_desc;
     memset(&prg_desc, 0, sizeof(synth_prg_desc_t));
-    uint16_t om_len = OS_MBUF_PKTLEN(ctxt->om);
-  
-    if (om_len > sizeof(synth_prg_desc_t)) {
-      return BLE_ATT_ERR_INVALID_ATTR_VALUE_LEN;
+    
+    int rc = gatt_svr_chr_write(ctxt->om, sizeof(synth_prg_desc_t), &prg_desc);
+    if (rc != 0) {
+      return rc;
     }
-
-    ble_hs_mbuf_to_flat(ctxt->om, &prg_desc, om_len, &om_len);
-
+    
     if (synth_prg_write(&prg_desc) != ESP_OK) {
       return BLE_ATT_ERR_UNLIKELY;
     }
@@ -132,6 +188,117 @@ void gatt_svr_register_cb(struct ble_gatt_register_ctxt *ctxt, void *arg) {
     assert(0);
     break;
   }
+}
+
+static void update_ota_control(uint16_t conn_handle) {
+  struct os_mbuf *om;
+  esp_err_t err;
+
+  switch (gatt_svr_chr_ota_control_val) {
+    case SVR_CHR_OTA_CONTROL_REQUEST:
+      ESP_LOGI(TAG, "OTA has been requested via BLE.");
+      update_partition = esp_ota_get_next_update_partition(NULL);
+      err = esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "esp_ota_begin failed (%s)", esp_err_to_name(err));
+        esp_ota_abort(update_handle);
+        gatt_svr_chr_ota_control_val = SVR_CHR_OTA_CONTROL_REQUEST_NAK;
+      } else {
+        gatt_svr_chr_ota_control_val = SVR_CHR_OTA_CONTROL_REQUEST_ACK;
+        updating = true;
+
+        packet_size = (gatt_svr_chr_ota_data_val[1] << 8) + gatt_svr_chr_ota_data_val[0];
+        ESP_LOGI(TAG, "Packet size is: %d", packet_size);
+
+        num_pkgs_received = 0;
+      }
+
+      om = ble_hs_mbuf_from_flat(&gatt_svr_chr_ota_control_val, sizeof(gatt_svr_chr_ota_control_val));
+      ble_gattc_notify_custom(conn_handle, ota_control_val_handle, om);
+      ESP_LOGI(TAG, "OTA request acknowledgement has been sent.");
+      break;
+    case SVR_CHR_OTA_CONTROL_DONE:
+      updating = false;
+
+      err = esp_ota_end(update_handle);
+      if (err != ESP_OK) {
+        if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
+          ESP_LOGE(TAG, "Image validation failed, image is corrupted!");
+        } else {
+          ESP_LOGE(TAG, "esp_ota_end failed (%s)!", esp_err_to_name(err));
+        }
+      } else {
+        err = esp_ota_set_boot_partition(update_partition);
+        if (err != ESP_OK) {
+          ESP_LOGE(TAG, "esp_ota_set_boot_partition failed (%s)!", esp_err_to_name(err));
+        }
+      }
+
+      if (err != ESP_OK) {
+        gatt_svr_chr_ota_control_val = SVR_CHR_OTA_CONTROL_DONE_NAK;
+      } else {
+        gatt_svr_chr_ota_control_val = SVR_CHR_OTA_CONTROL_DONE_ACK;
+      }
+
+      om = ble_hs_mbuf_from_flat(&gatt_svr_chr_ota_control_val, sizeof(gatt_svr_chr_ota_control_val));
+      ble_gattc_notify_custom(conn_handle, ota_control_val_handle, om);
+      ESP_LOGI(TAG, "OTA DONE acknowledgement has been sent.");
+
+      // restart the ESP to finish the OTA
+      if (err == ESP_OK) {
+        ESP_LOGI(TAG, "Preparing to restart!");
+        vTaskDelay(pdMS_TO_TICKS(REBOOT_DEEP_SLEEP_TIMEOUT));
+        esp_restart();
+      }
+
+      break;
+
+    default:
+      break;
+  }
+}
+
+static int gatt_svr_chr_ota_control_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  int rc;
+  uint8_t length = sizeof(gatt_svr_chr_ota_control_val);
+
+  switch (ctxt->op) {
+    case BLE_GATT_ACCESS_OP_READ_CHR:
+      rc = os_mbuf_append(ctxt->om, &gatt_svr_chr_ota_control_val, length);
+      return rc == 0 ? 0 : BLE_ATT_ERR_INSUFFICIENT_RES;
+      break;
+
+    case BLE_GATT_ACCESS_OP_WRITE_CHR:
+      rc = gatt_svr_chr_write(ctxt->om, length, &gatt_svr_chr_ota_control_val);
+      update_ota_control(conn_handle);
+      return rc;
+      break;
+    default:
+      break;
+  }
+
+  // this shouldn't happen
+  assert(0);
+  return BLE_ATT_ERR_UNLIKELY;
+}
+
+static int gatt_svr_chr_ota_data_cb(uint16_t conn_handle, uint16_t attr_handle, struct ble_gatt_access_ctxt *ctxt, void *arg) {
+  int rc;
+  esp_err_t err;
+
+  rc = gatt_svr_chr_write(ctxt->om, sizeof(gatt_svr_chr_ota_data_val), gatt_svr_chr_ota_data_val);
+
+  if (updating) {
+    err = esp_ota_write(update_handle, (const void *)gatt_svr_chr_ota_data_val, packet_size);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ota_write failed (%s)!", esp_err_to_name(err));
+    }
+
+    num_pkgs_received++;
+    ESP_LOGI(TAG, "Received packet %d", num_pkgs_received);
+  }
+
+  return rc;
 }
 
 int gatt_svr_init(void) {
