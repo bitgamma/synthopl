@@ -9,7 +9,7 @@
 #include "opl_srv.h"
 #include "synth.h"
 
-#define MIDI_SRV_STACK_SIZE 8096
+#define MIDI_SRV_STACK_SIZE 8192
 #define MIDI_UART UART_NUM_1
 #define MIDI_UART_RX_PIN UART_NUM_1_RXD_DIRECT_GPIO_NUM
 #define RECV_BUF_SIZE 512

@@ -20,7 +20,7 @@ async def _search_for_device():
     print("Searching for SynthOPL...")
     dev = None
 
-    devices = await BleakScanner.discover(timeout = 20)
+    devices = await BleakScanner.discover()
     for device in devices:
         if device.name == "Synth OPL":
             dev = device
