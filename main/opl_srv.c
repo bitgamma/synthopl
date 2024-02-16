@@ -211,13 +211,12 @@ static void opl_load_prg(const opl_load_prg_t* prg) {
 }
 
 void opl_pitch_bend(int16_t bend) {
-  //TODO: recalculate all voices
   g_synth.pitch_bend = bend;
   opl_note_t note = {.drum_channel = 0, .velocity = 127};
   for (int i = 0; i < KEYBOARD_POLY_CFG[g_synth.prg.config.map]; i++) {
     note.note = g_synth.keyboard_voices[i].note & 0x7f;
     uint8_t onflag = ((~g_synth.keyboard_voices[i].note) & SYNTH_NOTE_OFF) >> 2;
-    opl_set_fnum(OPL_VOICE_TO_CHANNEL[i], &note, onflag);
+    opl_set_fnum(OPL_VOICE_TO_CHANNEL[DRUMKIT_SIZE + i], &note, onflag);
   }
 }
 
