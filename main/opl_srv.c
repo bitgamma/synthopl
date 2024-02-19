@@ -177,9 +177,6 @@ static inline uint8_t opl_is_carrier(uint8_t op, uint8_t op_count, uint8_t synth
 
 static void opl_note_on(opl_note_t* note) {
   uint8_t voice_ch = synth_add_voice(note);
-  if (voice_ch == VOICE_NONE) {
-    return;
-  }
 
   uint8_t op_count;
   opl_operator_t* ops;

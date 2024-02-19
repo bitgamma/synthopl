@@ -38,25 +38,32 @@ static uint8_t synth_add_drumkit_voice(opl_note_t* note) {
 }
 
 static uint8_t synth_add_keyboard_voice(const opl_note_t* note) {
-  // TODO: evaluate note stealing algorithms
   int voice = VOICE_NONE;
+  uint64_t first_played = UINT64_MAX;
+  int stolen_voice = VOICE_NONE;
 
   for (int i = 0; i < KEYBOARD_POLY_CFG[g_synth.prg.config.map]; i++) {
-    if (g_synth.keyboard_voices[i].note & SYNTH_NOTE_OFF) {
+    if ((g_synth.keyboard_voices[i].note & 0x7f) == note->note) {
+      voice = i;
+      break;
+    } else if (g_synth.keyboard_voices[i].note & SYNTH_NOTE_OFF) {
       if ((voice == VOICE_NONE) || 
         (g_synth.keyboard_voices[i].last_modified < g_synth.keyboard_voices[voice].last_modified)) {
         voice = i;
       }
+    } else if (g_synth.keyboard_voices[i].last_modified < first_played) {
+      first_played = g_synth.keyboard_voices[i].last_modified;
+      stolen_voice = i;
     }
   }
 
-  if (voice != VOICE_NONE) {
-    g_synth.keyboard_voices[voice].last_modified = esp_timer_get_time();
-    g_synth.keyboard_voices[voice].note = note->note;
-    return DRUMKIT_SIZE + voice;
+  if (voice == VOICE_NONE) {
+    voice = stolen_voice;
   }
 
-  return VOICE_NONE;
+  g_synth.keyboard_voices[voice].last_modified = esp_timer_get_time();
+  g_synth.keyboard_voices[voice].note = note->note;
+  return DRUMKIT_SIZE + voice;
 }
 
 uint8_t synth_add_voice(opl_note_t* note) {
