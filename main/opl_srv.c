@@ -66,6 +66,31 @@ static const uint16_t OPL_NOTE_TO_FNUM[12] = {
 	345, 365, 387, 410, 435, 460, 488, 517, 547, 580, 615, 651
 };
 
+static const uint8_t OPL_VELOCITY_TO_OUTPUT_LEVEL[64] = {
+  0x3f, 0x3a, 0x35, 0x30, 0x2c, 0x29, 0x25, 0x24,
+  0x23, 0x22, 0x21, 0x20, 0x1f, 0x1e, 0x1d, 0x1c,
+  0x1b, 0x1a, 0x19, 0x18, 0x17, 0x16, 0x15, 0x14,
+  0x13, 0x12, 0x11, 0x10, 0x0f, 0x0e, 0x0e, 0x0d,
+  0x0d, 0x0c, 0x0c, 0x0b, 0x0b, 0x0a, 0x0a, 0x09,
+  0x09, 0x08, 0x08, 0x07, 0x07, 0x06, 0x06, 0x06,
+  0x05, 0x05, 0x05, 0x04, 0x04, 0x04, 0x04, 0x03,
+  0x03, 0x03, 0x02, 0x02, 0x02, 0x01, 0x01, 0x00,
+};
+
+enum opl_op_role {
+  OP_CARRIER,
+  OP_MOD1,
+  OP_MOD2,
+  OP_MOD3,
+};
+
+static const enum opl_op_role OP_ROLE_4OPS[4][4] = {
+  {OP_MOD3, OP_MOD2, OP_MOD1, OP_CARRIER},
+  {OP_CARRIER, OP_MOD2, OP_MOD1, OP_CARRIER},
+  {OP_MOD1, OP_CARRIER, OP_MOD1, OP_CARRIER},
+  {OP_CARRIER, OP_MOD1, OP_CARRIER, OP_CARRIER},
+};
+
 static const char *TAG = "opl_srv";
 
 static QueueHandle_t msg_queue;
@@ -141,14 +166,43 @@ static void opl_set_fnum(uint8_t channel, const opl_note_t* note, uint8_t onflag
   opl_bus_write(opl_channel_reg_addr(OPL_CH_KEYON_BLOCK_FREQH_BASE, channel), onflag | fnum_cache[channel]);  
 }
 
+static inline uint8_t opl_is_carrier(uint8_t op, uint8_t op_count, uint8_t synth_mode) {
+  if (op_count == 2) {
+    // in FM only op 1 is carrier, in AM both are
+    return (op | (g_synth.prg.keyboard.ch_feedback_synth & 1));
+  } else {
+    return OP_ROLE_4OPS[synth_mode][op] == OP_CARRIER;
+  }
+}
+
 static void opl_note_on(opl_note_t* note) {
-  //TODO: consider velocity
   uint8_t voice_ch = synth_add_voice(note);
   if (voice_ch == VOICE_NONE) {
     return;
   }
 
+  uint8_t op_count;
+  opl_operator_t* ops;
+  uint8_t synth_mode;
+
+  if (note->drum_channel) {
+    op_count = 2;
+    ops = g_synth.prg.drumkit[voice_ch].ops;
+    synth_mode = g_synth.prg.drumkit[voice_ch].ch_feedback_synth & 0x1;
+  } else {
+    op_count = g_synth.prg.config.map ? 2 : 4;
+    ops = g_synth.prg.keyboard.ops;
+    synth_mode = (g_synth.prg.keyboard.ch_feedback_synth & 0x80 >> 6) | (g_synth.prg.keyboard.ch_feedback_synth & 1);
+  }
+
   voice_ch = OPL_VOICE_TO_CHANNEL[voice_ch];
+  
+  for (int i = 0; i < op_count; i++) {
+    if (opl_is_carrier(i, op_count, synth_mode)) {
+      uint8_t ksl_ol = (ops[i].ksl_output & 0xc0) | (OPL_VELOCITY_TO_OUTPUT_LEVEL[note->velocity >> 1] + (ops[i].ksl_output & 0x3f));
+      opl_bus_write(opl_op_reg_addr(OPL_OP_KSL_OUTPUT_BASE, OPL_CHANNEL_OPS[voice_ch][i]), ksl_ol);
+    }
+  }
 
   opl_set_fnum(voice_ch, note, OPL_CH_KEY_ON);
 }
