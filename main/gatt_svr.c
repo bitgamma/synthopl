@@ -217,7 +217,7 @@ static void update_ota_control(uint16_t conn_handle) {
       }
 
       om = ble_hs_mbuf_from_flat(&gatt_svr_chr_ota_control_val, sizeof(gatt_svr_chr_ota_control_val));
-      ble_gattc_notify_custom(conn_handle, ota_control_val_handle, om);
+      ble_gatts_notify_custom(conn_handle, ota_control_val_handle, om);
       ESP_LOGI(TAG, "OTA request acknowledgement has been sent.");
       break;
     case SVR_CHR_OTA_CONTROL_DONE:
@@ -244,7 +244,7 @@ static void update_ota_control(uint16_t conn_handle) {
       }
 
       om = ble_hs_mbuf_from_flat(&gatt_svr_chr_ota_control_val, sizeof(gatt_svr_chr_ota_control_val));
-      ble_gattc_notify_custom(conn_handle, ota_control_val_handle, om);
+      ble_gatts_notify_custom(conn_handle, ota_control_val_handle, om);
       ESP_LOGI(TAG, "OTA DONE acknowledgement has been sent.");
 
       // restart the ESP to finish the OTA
@@ -401,7 +401,7 @@ void ble_synth_notify_program(void) {
   synth_prg_dump(&prg);
 
   struct os_mbuf *om = ble_hs_mbuf_from_flat(&prg, sizeof(synth_prg_dump_t));
-  ble_gattc_notify_custom(conn_handle, ble_synth_program_val_handle, om);
+  ble_gatts_notify_custom(conn_handle, ble_synth_program_val_handle, om);
 }
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
