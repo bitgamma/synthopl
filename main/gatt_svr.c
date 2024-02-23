@@ -23,10 +23,8 @@ static const char *manuf_name = "Bitgamma";
 static const char *model_num = "Synth OPL";
 static const char *TAG = "gatt_srv";
 
-static uint16_t conn_handle;
 static uint8_t ble_synth_prph_addr_type;
 static uint16_t ble_synth_program_val_handle;
-static bool subscribed;
 
 static uint8_t gatt_svr_chr_ota_control_val;
 static uint8_t gatt_svr_chr_ota_data_val[512];
@@ -382,26 +380,8 @@ static void ble_synth_prph_advertise(void) {
   }
 }
 
-void ble_synth_on_disconnect(uint16_t conn_handle) {
-  subscribed = false;
-}
-
-void ble_synth_subscribe(uint16_t conn_handle, uint16_t attr_handle) {
-  if (attr_handle == ble_synth_program_val_handle) {
-    subscribed = true;
-  }
-}
-
 void ble_synth_notify_program(void) {
-  if (!subscribed) {
-    return;
-  }
-
-  synth_prg_dump_t prg;
-  synth_prg_dump(&prg);
-
-  struct os_mbuf *om = ble_hs_mbuf_from_flat(&prg, sizeof(synth_prg_dump_t));
-  ble_gatts_notify_custom(conn_handle, ble_synth_program_val_handle, om);
+  ble_gatts_chr_updated(ble_synth_program_val_handle);
 }
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
@@ -413,13 +393,11 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
     if (event->connect.status != 0) {
       ble_synth_prph_advertise();
     }
-    conn_handle = event->connect.conn_handle;
     break;
 
   case BLE_GAP_EVENT_DISCONNECT:
     MODLOG_DFLT(INFO, "disconnect; reason=%d\n", event->disconnect.reason);
     ble_synth_prph_advertise();
-    ble_synth_on_disconnect(event->disconnect.conn.conn_handle);
     break;
 
   case BLE_GAP_EVENT_ADV_COMPLETE:
@@ -429,7 +407,6 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
 
   case BLE_GAP_EVENT_SUBSCRIBE:
     MODLOG_DFLT(INFO, "subscribe event; cur_notify=%d\n value handle; val_handle=%d\n", event->subscribe.cur_notify, event->subscribe.attr_handle);
-    ble_synth_subscribe(event->subscribe.conn_handle, event->subscribe.attr_handle);
     break;
 
   case BLE_GAP_EVENT_MTU:
