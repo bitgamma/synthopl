@@ -25,6 +25,8 @@ static const char *TAG = "gatt_srv";
 
 static uint16_t conn_handle;
 static uint8_t ble_synth_prph_addr_type;
+static uint16_t ble_synth_program_val_handle;
+static bool subscribed;
 
 static uint8_t gatt_svr_chr_ota_control_val;
 static uint8_t gatt_svr_chr_ota_data_val[512];
@@ -67,7 +69,8 @@ static const struct ble_gatt_svc_def gatt_svr_svcs[] = {
         /* Characteristic: Program */
         .uuid = BLE_UUID128_DECLARE(GATT_OPL_CHR_UUID_PROGRAM),
         .access_cb = gatt_svr_chr_opl_program,
-        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE,
+        .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_NOTIFY,
+        .val_handle = &ble_synth_program_val_handle
       }, {
         0, /* No more characteristics in this service */
       },
@@ -379,20 +382,26 @@ static void ble_synth_prph_advertise(void) {
   }
 }
 
-void ble_synth_prph_tx_stop(void) {
-
-}
-
-void ble_synth_prph_tx_reset(void) {
-
-}
-
 void ble_synth_on_disconnect(uint16_t conn_handle) {
-
+  subscribed = false;
 }
 
 void ble_synth_subscribe(uint16_t conn_handle, uint16_t attr_handle) {
+  if (attr_handle == ble_synth_program_val_handle) {
+    subscribed = true;
+  }
+}
 
+void ble_synth_notify_program(void) {
+  if (!subscribed) {
+    return;
+  }
+
+  synth_prg_dump_t prg;
+  synth_prg_dump(&prg);
+
+  struct os_mbuf *om = ble_hs_mbuf_from_flat(&prg, sizeof(synth_prg_dump_t));
+  ble_gattc_notify_custom(conn_handle, ble_synth_program_val_handle, om);
 }
 
 static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
@@ -406,28 +415,21 @@ static int ble_synth_prph_gap_event(struct ble_gap_event *event, void *arg) {
     }
     conn_handle = event->connect.conn_handle;
     break;
+
   case BLE_GAP_EVENT_DISCONNECT:
     MODLOG_DFLT(INFO, "disconnect; reason=%d\n", event->disconnect.reason);
-
     ble_synth_prph_advertise();
-    ble_synth_prph_tx_stop();
-
     ble_synth_on_disconnect(event->disconnect.conn.conn_handle);
     break;
+
   case BLE_GAP_EVENT_ADV_COMPLETE:
-      MODLOG_DFLT(INFO, "adv complete\n");
-      ble_synth_prph_advertise();
-      break;
+    MODLOG_DFLT(INFO, "adv complete\n");
+    ble_synth_prph_advertise();
+    break;
+
   case BLE_GAP_EVENT_SUBSCRIBE:
     MODLOG_DFLT(INFO, "subscribe event; cur_notify=%d\n value handle; val_handle=%d\n", event->subscribe.cur_notify, event->subscribe.attr_handle);
-
     ble_synth_subscribe(event->subscribe.conn_handle, event->subscribe.attr_handle);
-
-    if (event->subscribe.cur_notify) {
-      ble_synth_prph_tx_reset();
-    }
-
-    ESP_LOGI("BLE_GAP_SUBSCRIBE_EVENT", "conn_handle from subscribe=%d", conn_handle);
     break;
 
   case BLE_GAP_EVENT_MTU:

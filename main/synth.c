@@ -1,6 +1,7 @@
 #include <string.h>
 
 #include "synth.h"
+#include "gatt_svr.h"
 #include "esp_timer.h"
 #include "nvs.h"
 
@@ -132,6 +133,8 @@ void synth_load_prg(const opl_load_prg_t* prg) {
 
   g_synth.bank_num = prg->bank;
   g_synth.prg_num = prg->prg;
+
+  ble_synth_notify_program();
 }
 
 void synth_prg_dump(synth_prg_dump_t* out) {
